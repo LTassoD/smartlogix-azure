@@ -81,6 +81,24 @@ export function getSafeErrorMessage(error: unknown): string {
 
 function getPublicHttpMessage(status: number, payload?: unknown): string {
   const responseMessage = getResponseMessage(payload);
+  const responseCode = getResponseCode(payload);
+  const responseContext = `${responseCode ?? ""} ${responseMessage ?? ""}`.toLocaleLowerCase("es-CL");
+
+  if (status === 429) {
+    return "Demasiados intentos. Espera un momento antes de volver a intentarlo.";
+  }
+
+  if (isTwoFactorContext(responseContext) && isExpiredContext(responseContext)) {
+    return "El codigo o desafio de autenticacion expiro. Inicia sesion nuevamente.";
+  }
+
+  if ((status === 400 || status === 401 || status === 403) && isTwoFactorContext(responseContext)) {
+    return "Codigo de autenticacion incorrecto.";
+  }
+
+  if (status === 410) {
+    return "El desafio de autenticacion expiro. Inicia sesion nuevamente.";
+  }
 
   if (status === 409 && responseMessage && isSkuDuplicateMessage(responseMessage)) {
     return "Ya existe un producto registrado con este SKU.";
@@ -91,7 +109,7 @@ function getPublicHttpMessage(status: number, payload?: unknown): string {
   }
 
   if (status === 401) {
-    if (responseMessage && responseMessage.toLocaleLowerCase("es-CL").includes("invalid")) {
+    if (isInvalidCredentialsContext(responseContext)) {
       return "Credenciales invalidas.";
     }
 
@@ -125,6 +143,32 @@ function getResponseMessage(payload: unknown): string | null {
   const message = payload.message;
 
   return typeof message === "string" ? message : null;
+}
+
+function getResponseCode(payload: unknown): string | null {
+  if (!isRecord(payload)) {
+    return null;
+  }
+
+  const code = payload.code;
+  return typeof code === "string" ? code : null;
+}
+
+function isTwoFactorContext(value: string): boolean {
+  return ["2fa", "two-factor", "two_factor", "two factor", "twofactor", "totp", "otp", "authentication code", "codigo", "código", "temporary token", "challenge", "desafio", "desafío"].some(
+    (term) => value.includes(term)
+  );
+}
+
+function isExpiredContext(value: string): boolean {
+  return ["expired", "expirado", "expirada", "vencido", "vencida"].some((term) => value.includes(term));
+}
+
+function isInvalidCredentialsContext(value: string): boolean {
+  const mentionsCredentials = ["credential", "credencial", "password", "contrasena", "contraseña"].some((term) => value.includes(term));
+  const indicatesFailure = ["invalid", "incorrect", "invalida", "inválida", "incorrecta"].some((term) => value.includes(term));
+
+  return mentionsCredentials && indicatesFailure;
 }
 
 function isSkuDuplicateMessage(message: string): boolean {

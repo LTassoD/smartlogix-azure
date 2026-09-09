@@ -62,6 +62,24 @@ public class UserEntity {
     @JoinColumn(name = "role_id", nullable = false)
     private RoleEntity role;
 
+    // Kept nullable so Hibernate can add the column without breaking existing rows.
+    // A null value is always treated as disabled by the application.
+    @Builder.Default
+    @Column(name = "two_factor_enabled")
+    private Boolean twoFactorEnabled = false;
+
+    @Column(name = "two_factor_secret_encrypted", length = 1024)
+    private String twoFactorSecretEncrypted;
+
+    @Column(name = "two_factor_pending_secret_encrypted", length = 1024)
+    private String twoFactorPendingSecretEncrypted;
+
+    @Column(name = "two_factor_pending_expires_at")
+    private LocalDateTime twoFactorPendingExpiresAt;
+
+    @Column(name = "two_factor_last_used_counter")
+    private Long twoFactorLastUsedCounter;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -76,6 +94,9 @@ public class UserEntity {
 
         if (active == null) {
             active = true;
+        }
+        if (twoFactorEnabled == null) {
+            twoFactorEnabled = false;
         }
     }
 

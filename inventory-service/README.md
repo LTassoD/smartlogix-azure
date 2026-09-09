@@ -10,8 +10,8 @@ Este componente usa Spring Boot 4.0.6, Java 21, Maven, PostgreSQL, Spring Data J
 - Base de datos: `smartlogix_inventory_db`
 - Host PostgreSQL local: `localhost`
 - Puerto PostgreSQL local: `5433`
-- Usuario: `smartlogix`
-- Password: `smartlogix123`
+- Usuario: variable `SMARTLOGIX_DB_USERNAME` (por defecto, `smartlogix`)
+- Password: variable obligatoria `SMARTLOGIX_DB_PASSWORD`
 
 La base de datos se levanta desde el `docker-compose.yml` principal del repositorio.
 

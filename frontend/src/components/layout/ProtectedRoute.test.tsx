@@ -29,7 +29,7 @@ describe("ProtectedRoute", () => {
     expect(screen.getByText("Login")).toBeInTheDocument();
   });
 
-  it("shows restricted access when role lacks permission", () => {
+  it("allows VIEWER to open account settings", () => {
     render(
       <AuthProvider role="VIEWER">
         <MemoryRouter initialEntries={["/configuracion"]}>
@@ -40,8 +40,7 @@ describe("ProtectedRoute", () => {
       </AuthProvider>
     );
 
-    expect(screen.getByText(/acceso restringido/i)).toBeInTheDocument();
-    expect(screen.queryByText("Configuracion privada")).not.toBeInTheDocument();
+    expect(screen.getByText("Configuracion privada")).toBeInTheDocument();
   });
 
   it("renders protected content when role has permission", () => {
@@ -66,6 +65,7 @@ function AuthProvider({ children, role }: PropsWithChildren<{ role: AuthRole | n
         email: "user@smartlogix.cl",
         fullName: "Usuario SmartLogix",
         role,
+        twoFactorEnabled: false,
         active: true
       }
     : null;
@@ -83,6 +83,19 @@ function AuthProvider({ children, role }: PropsWithChildren<{ role: AuthRole | n
         throw new Error("Missing user");
       }
 
+      return {
+        requiresTwoFactor: false as const,
+        accessToken: "test-token",
+        tokenType: "Bearer",
+        expiresIn: 3600,
+        user
+      };
+    }),
+    verifyTwoFactor: vi.fn(async () => {
+      if (!user) {
+        throw new Error("Missing user");
+      }
+
       return user;
     }),
     logout: vi.fn(async () => undefined),
@@ -92,4 +105,3 @@ function AuthProvider({ children, role }: PropsWithChildren<{ role: AuthRole | n
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
-

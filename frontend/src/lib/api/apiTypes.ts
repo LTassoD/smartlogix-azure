@@ -34,15 +34,46 @@ export type LoginRequest = {
   password: string;
 };
 
+export type TwoFactorVerificationRequest = {
+  temporaryToken: string;
+  code: string;
+};
+
 export const AUTH_ROLES = ["ADMIN", "OPERATOR", "VIEWER"] as const;
 
 export type AuthRole = (typeof AUTH_ROLES)[number];
 
-export type LoginResponse = {
+export type AuthenticatedLoginResponse = {
+  requiresTwoFactor: false;
   accessToken: string;
   tokenType: string;
   expiresIn: number;
   user: UserResponse;
+};
+
+export type TwoFactorChallengeResponse = {
+  requiresTwoFactor: true;
+  temporaryToken: string;
+  expiresIn: number;
+};
+
+export type LoginResponse = AuthenticatedLoginResponse | TwoFactorChallengeResponse;
+
+export type TwoFactorStatusResponse = {
+  enabled: boolean;
+};
+
+export type TwoFactorSetupResponse = {
+  otpauthUri: string;
+  expiresInSeconds: number;
+};
+
+export type TwoFactorSetupVerificationRequest = {
+  code: string;
+};
+
+export type TwoFactorDisableRequest = {
+  currentPassword: string;
 };
 
 export type UserResponse = {
@@ -50,6 +81,7 @@ export type UserResponse = {
   email: string;
   fullName: string;
   role: AuthRole;
+  twoFactorEnabled: boolean;
   active?: boolean;
   createdAt?: string;
   updatedAt?: string;

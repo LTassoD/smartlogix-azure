@@ -7,7 +7,7 @@ import { AuthContext, type AuthContextValue } from "@/features/auth/hooks/AuthCo
 import type { AuthRole } from "@/features/auth/types/authTypes";
 
 describe("Sidebar", () => {
-  it("shows settings only for ADMIN", () => {
+  it("shows settings for ADMIN", () => {
     render(
       <AuthProvider role="ADMIN">
         <MemoryRouter>
@@ -19,7 +19,7 @@ describe("Sidebar", () => {
     expect(screen.getByRole("link", { name: /configuracion/i })).toBeInTheDocument();
   });
 
-  it("hides settings for OPERATOR", () => {
+  it("shows account settings for OPERATOR", () => {
     render(
       <AuthProvider role="OPERATOR">
         <MemoryRouter>
@@ -28,7 +28,7 @@ describe("Sidebar", () => {
       </AuthProvider>
     );
 
-    expect(screen.queryByRole("link", { name: /configuracion/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /configuracion/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /pedidos/i })).toBeInTheDocument();
   });
 });
@@ -39,6 +39,7 @@ function AuthProvider({ children, role }: PropsWithChildren<{ role: AuthRole }>)
     email: "user@smartlogix.cl",
     fullName: "Usuario SmartLogix",
     role,
+    twoFactorEnabled: false,
     active: true
   };
   const value: AuthContextValue = {
@@ -50,7 +51,14 @@ function AuthProvider({ children, role }: PropsWithChildren<{ role: AuthRole }>)
     isAuthenticated: true,
     authUnavailable: false,
     hasStoredToken: true,
-    login: vi.fn(async () => user),
+    login: vi.fn(async () => ({
+      requiresTwoFactor: false as const,
+      accessToken: "test-token",
+      tokenType: "Bearer",
+      expiresIn: 3600,
+      user
+    })),
+    verifyTwoFactor: vi.fn(async () => user),
     logout: vi.fn(async () => undefined),
     checkSession: vi.fn(async () => undefined),
     clearError: vi.fn()

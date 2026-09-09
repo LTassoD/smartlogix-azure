@@ -17,4 +17,6 @@ public class LoginResponse {
     private String tokenType;
     private long expiresIn;
     private UserResponse user;
+    private boolean requiresTwoFactor;
+    private String temporaryToken;
 }

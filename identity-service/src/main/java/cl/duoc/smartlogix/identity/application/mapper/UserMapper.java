@@ -15,6 +15,7 @@ public final class UserMapper {
                 .fullName(entity.getFullName())
                 .role(entity.getRole().getName().name())
                 .active(entity.getActive())
+                .twoFactorEnabled(Boolean.TRUE.equals(entity.getTwoFactorEnabled()))
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();

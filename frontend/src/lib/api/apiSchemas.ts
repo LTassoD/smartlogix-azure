@@ -1,6 +1,15 @@
 import { createValidationError } from "@/lib/api/apiErrors";
 import { AUTH_ROLES } from "@/lib/api/apiTypes";
-import type { ApiResponse, AuthRole, HealthCheckResponse, LoginResponse, SystemServiceHealth, UserResponse } from "@/lib/api/apiTypes";
+import type {
+  ApiResponse,
+  AuthRole,
+  HealthCheckResponse,
+  LoginResponse,
+  SystemServiceHealth,
+  TwoFactorSetupResponse,
+  TwoFactorStatusResponse,
+  UserResponse
+} from "@/lib/api/apiTypes";
 
 type Guard<T> = (value: unknown) => value is T;
 
@@ -24,6 +33,14 @@ export function parseLoginApiResponse(value: unknown): ApiResponse<LoginResponse
 
 export function parseCurrentUserApiResponse(value: unknown): ApiResponse<UserResponse> {
   return parseApiResponse(value, isUserResponse, "current user response");
+}
+
+export function parseTwoFactorStatusApiResponse(value: unknown): ApiResponse<TwoFactorStatusResponse> {
+  return parseApiResponse(value, isTwoFactorStatusResponse, "two-factor status response");
+}
+
+export function parseTwoFactorSetupApiResponse(value: unknown): ApiResponse<TwoFactorSetupResponse> {
+  return parseApiResponse(value, isTwoFactorSetupResponse, "two-factor setup response");
 }
 
 export function parseApiResponse<T>(value: unknown, dataGuard: Guard<T>, context: string): ApiResponse<T> {
@@ -57,11 +74,24 @@ function isLoginResponse(value: unknown): value is LoginResponse {
     return false;
   }
 
+  if (value.requiresTwoFactor === true) {
+    return (
+      typeof value.temporaryToken === "string" &&
+      value.temporaryToken.length > 0 &&
+      typeof value.expiresIn === "number" &&
+      Number.isFinite(value.expiresIn) &&
+      value.expiresIn > 0
+    );
+  }
+
   return (
+    value.requiresTwoFactor === false &&
     typeof value.accessToken === "string" &&
     value.accessToken.length > 0 &&
     typeof value.tokenType === "string" &&
     typeof value.expiresIn === "number" &&
+    Number.isFinite(value.expiresIn) &&
+    value.expiresIn > 0 &&
     isUserResponse(value.user)
   );
 }
@@ -77,9 +107,25 @@ function isUserResponse(value: unknown): value is UserResponse {
     typeof value.fullName === "string" &&
     typeof value.role === "string" &&
     isAuthRole(value.role) &&
+    typeof value.twoFactorEnabled === "boolean" &&
     (value.active === undefined || typeof value.active === "boolean") &&
     (value.createdAt === undefined || typeof value.createdAt === "string") &&
     (value.updatedAt === undefined || typeof value.updatedAt === "string")
+  );
+}
+
+function isTwoFactorStatusResponse(value: unknown): value is TwoFactorStatusResponse {
+  return isRecord(value) && typeof value.enabled === "boolean";
+}
+
+function isTwoFactorSetupResponse(value: unknown): value is TwoFactorSetupResponse {
+  return (
+    isRecord(value) &&
+    typeof value.otpauthUri === "string" &&
+    value.otpauthUri.startsWith("otpauth://totp/") &&
+    typeof value.expiresInSeconds === "number" &&
+    Number.isFinite(value.expiresInSeconds) &&
+    value.expiresInSeconds > 0
   );
 }
 

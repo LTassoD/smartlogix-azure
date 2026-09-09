@@ -28,7 +28,8 @@ const OPERATOR_PERMISSIONS = [
   "warehouses:view-detail",
   "warehouses:view-stock",
   "warehouses:create",
-  "reports:view"
+  "reports:view",
+  "settings:view"
 ] as const satisfies readonly Permission[];
 
 const VIEWER_PERMISSIONS = [
@@ -44,7 +45,8 @@ const VIEWER_PERMISSIONS = [
   "warehouses:view",
   "warehouses:view-detail",
   "warehouses:view-stock",
-  "reports:view"
+  "reports:view",
+  "settings:view"
 ] as const satisfies readonly Permission[];
 
 export const ROLE_PERMISSIONS: Record<AuthRole, readonly Permission[]> = {

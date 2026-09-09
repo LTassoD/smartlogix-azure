@@ -54,7 +54,7 @@ Body:
 ```json
 {
   "email": "admin@smartlogix.cl",
-  "password": "admin123"
+  "password": "<SMARTLOGIX_SEED_ADMIN_PASSWORD>"
 }
 ```
 

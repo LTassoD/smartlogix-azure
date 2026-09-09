@@ -14,6 +14,7 @@ type RequestOptions<TResponse> = {
   body?: unknown;
   headers?: HeadersInit;
   auth?: boolean;
+  logoutOnUnauthorized?: boolean;
   timeoutMs?: number;
   parse?: (value: unknown) => TResponse;
 };
@@ -48,7 +49,7 @@ async function request<TResponse>(
     const payload = await readResponsePayload(response);
 
     if (!response.ok) {
-      if (response.status === 401 && options.auth !== false) {
+      if (response.status === 401 && options.auth !== false && options.logoutOnUnauthorized !== false) {
         window.dispatchEvent(new CustomEvent(unauthorizedEventName));
       }
 

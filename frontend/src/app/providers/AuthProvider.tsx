@@ -67,15 +67,41 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
     try {
       const loginResponse = await authApi.login(credentials);
+
+      if (loginResponse.requiresTwoFactor) {
+        setUser(null);
+        setStatus("anonymous");
+        return loginResponse;
+      }
+
       authTokenProvider.setToken(loginResponse.accessToken);
       setUser(loginResponse.user);
       setStatus("authenticated");
-      return loginResponse.user;
+      return loginResponse;
     } catch (loginError) {
       const safeMessage = getSafeErrorMessage(loginError);
       setError(safeMessage);
       setStatus("anonymous");
       throw loginError;
+    } finally {
+      setActionLoading(false);
+    }
+  }, []);
+
+  const verifyTwoFactor = useCallback(async (temporaryToken: string, code: string) => {
+    setActionLoading(true);
+    setError(null);
+
+    try {
+      const loginResponse = await authApi.verifyTwoFactor({ temporaryToken, code });
+      authTokenProvider.setToken(loginResponse.accessToken);
+      setUser(loginResponse.user);
+      setStatus("authenticated");
+      return loginResponse.user;
+    } catch (verificationError) {
+      setError(getSafeErrorMessage(verificationError));
+      setStatus("anonymous");
+      throw verificationError;
     } finally {
       setActionLoading(false);
     }
@@ -103,11 +129,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
       authUnavailable: status === "unavailable",
       hasStoredToken: authTokenProvider.hasToken(),
       login,
+      verifyTwoFactor,
       logout,
       checkSession,
       clearError
     }),
-    [actionLoading, checkSession, clearError, error, login, logout, status, user]
+    [actionLoading, checkSession, clearError, error, login, logout, status, user, verifyTwoFactor]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

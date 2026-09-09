@@ -13,7 +13,9 @@ variables:
   - name: shippingUrl
     value: http://localhost:8083
   - name: token
-    value: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzbWFydGxvZ2l4LWlkZW50aXR5LXNlcnZpY2UiLCJzdWIiOiJhZG1pbkBzbWFydGxvZ2l4LmNsIiwicm9sZSI6IkFETUlOIiwiZXhwIjoxNzc4NzIwNzk3LCJpYXQiOjE3Nzg3MTcxOTcsInVzZXJJZCI6MX0.EKdA1FaE2a40NO3208Mj4OkHz_0_0TBhxIellG2tFug
+    value: ""
+  - name: adminPassword
+    value: ""
   - name: orderId
     value: ""
   - name: orderNumber

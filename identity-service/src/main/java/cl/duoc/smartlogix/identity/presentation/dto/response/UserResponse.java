@@ -19,6 +19,7 @@ public class UserResponse {
     private String fullName;
     private String role;
     private Boolean active;
+    private boolean twoFactorEnabled;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

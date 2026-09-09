@@ -1,4 +1,10 @@
 name: Local
 variables:
   - name: token
-    value: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzbWFydGxvZ2l4LWlkZW50aXR5LXNlcnZpY2UiLCJzdWIiOiJ2aWV3ZXJAc21hcnRsb2dpeC5jbCIsInJvbGUiOiJWSUVXRVIiLCJleHAiOjE3Nzg3MjA4MDUsImlhdCI6MTc3ODcxNzIwNSwidXNlcklkIjozfQ.1Kf-PGRO2R3UD2UB2Cf5dU99t0zKkHw4wuspiaIoWN8
+    value: ""
+  - name: adminPassword
+    value: ""
+  - name: operatorPassword
+    value: ""
+  - name: viewerPassword
+    value: ""

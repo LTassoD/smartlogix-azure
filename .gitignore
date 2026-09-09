@@ -23,5 +23,10 @@
 hs_err_pid*
 replay_pid*
 
+# Local secrets and environment overrides
+.env
+.env.local
+*.local.properties
+
 # Local agent instructions
 AGENTS.md

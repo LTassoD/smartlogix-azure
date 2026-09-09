@@ -10,13 +10,16 @@ import cl.duoc.smartlogix.identity.domain.exception.ResourceNotFoundException;
 import cl.duoc.smartlogix.identity.infrastructure.persistence.entity.RoleEntity;
 import cl.duoc.smartlogix.identity.infrastructure.persistence.entity.UserEntity;
 import cl.duoc.smartlogix.identity.infrastructure.persistence.repository.RoleRepository;
+import cl.duoc.smartlogix.identity.infrastructure.persistence.repository.TwoFactorChallengeRepository;
 import cl.duoc.smartlogix.identity.infrastructure.persistence.repository.UserRepository;
+import cl.duoc.smartlogix.identity.infrastructure.security.AuthenticationAttemptRateLimiter;
 import cl.duoc.smartlogix.identity.presentation.dto.request.ChangeOwnPasswordRequest;
 import cl.duoc.smartlogix.identity.presentation.dto.request.CreateUserRequest;
 import cl.duoc.smartlogix.identity.presentation.dto.request.ResetUserPasswordRequest;
 import cl.duoc.smartlogix.identity.presentation.dto.request.UpdateUserRequest;
 import cl.duoc.smartlogix.identity.presentation.dto.request.UpdateUserRoleRequest;
 import cl.duoc.smartlogix.identity.presentation.dto.response.UserResponse;
+import java.time.Clock;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -35,6 +38,9 @@ public class UserManagementServiceImpl implements UserManagementService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final TwoFactorChallengeRepository challengeRepository;
+    private final AuthenticationAttemptRateLimiter rateLimiter;
+    private final Clock clock;
 
     @Override
     @Transactional(readOnly = true)
@@ -77,7 +83,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Override
     @Transactional
     public UserResponse update(Long id, UpdateUserRequest request, String currentUserEmail) {
-        UserEntity user = findUser(id);
+        UserEntity user = findLockedUser(id);
 
         if (request.getFullName() != null && !request.getFullName().isBlank()) {
             user.setFullName(request.getFullName().trim());
@@ -89,6 +95,9 @@ public class UserManagementServiceImpl implements UserManagementService {
             }
 
             user.setActive(request.getActive());
+            if (Boolean.FALSE.equals(request.getActive())) {
+                invalidateActiveChallenges(user);
+            }
         }
 
         return UserMapper.toResponse(user);
@@ -97,7 +106,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Override
     @Transactional
     public UserResponse updateRole(Long id, UpdateUserRoleRequest request) {
-        UserEntity user = findUser(id);
+        UserEntity user = findLockedUser(id);
 
         if (user.getRole().getName() == RoleName.ADMIN && request.getRole() != RoleName.ADMIN && activeAdminCount() <= 1) {
             throw new BusinessRuleException("Debe existir al menos un administrador activo.");
@@ -110,16 +119,17 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Override
     @Transactional
     public UserResponse resetPassword(Long id, ResetUserPasswordRequest request) {
-        UserEntity user = findUser(id);
+        UserEntity user = findLockedUser(id);
         validatePassword(request.getNewPassword());
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        invalidateChallengesAndResetPasswordLimiter(user);
         return UserMapper.toResponse(user);
     }
 
     @Override
     @Transactional
     public void changeOwnPassword(String email, ChangeOwnPasswordRequest request) {
-        UserEntity user = userRepository.findByEmailIgnoreCase(email)
+        UserEntity user = userRepository.findByEmailIgnoreCaseForUpdate(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado."));
 
         if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
@@ -128,19 +138,26 @@ public class UserManagementServiceImpl implements UserManagementService {
 
         validatePassword(request.getNewPassword());
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        invalidateChallengesAndResetPasswordLimiter(user);
     }
 
     @Override
     @Transactional
     public UserResponse deactivate(Long id, String currentUserEmail) {
-        UserEntity user = findUser(id);
+        UserEntity user = findLockedUser(id);
         ensureUserCanBeDeactivated(user, currentUserEmail);
         user.setActive(false);
+        invalidateActiveChallenges(user);
         return UserMapper.toResponse(user);
     }
 
     private UserEntity findUser(Long id) {
         return userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado."));
+    }
+
+    private UserEntity findLockedUser(Long id) {
+        return userRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado."));
     }
 
@@ -164,6 +181,15 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     private long activeAdminCount() {
         return userRepository.countByActiveTrueAndRole_Name(RoleName.ADMIN);
+    }
+
+    private void invalidateChallengesAndResetPasswordLimiter(UserEntity user) {
+        invalidateActiveChallenges(user);
+        rateLimiter.reset("password:" + normalizeEmail(user.getEmail()));
+    }
+
+    private void invalidateActiveChallenges(UserEntity user) {
+        challengeRepository.invalidateActiveByUserId(user.getId(), clock.instant());
     }
 
     private void validatePassword(String password) {

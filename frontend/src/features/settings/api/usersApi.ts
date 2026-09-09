@@ -104,6 +104,7 @@ function isUserResponse(value: unknown): value is UserResponse {
     typeof value.fullName === "string" &&
     typeof value.role === "string" &&
     AUTH_ROLES.some((role) => role === value.role) &&
+    typeof value.twoFactorEnabled === "boolean" &&
     (value.active === undefined || typeof value.active === "boolean") &&
     (value.createdAt === undefined || typeof value.createdAt === "string") &&
     (value.updatedAt === undefined || typeof value.updatedAt === "string")

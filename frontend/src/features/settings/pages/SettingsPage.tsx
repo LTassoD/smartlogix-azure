@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
   CheckCircle2,
   Eye,
@@ -24,6 +24,7 @@ import { TextInput } from "@/components/ui/TextInput";
 import { useToast } from "@/components/ui/toastContext";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { authApi } from "@/features/auth/api/authApi";
+import { TwoFactorSettingsCard } from "@/features/auth/components/TwoFactorSettingsCard";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import type { Permission } from "@/features/auth/permissions/permissions";
 import { usePermissions } from "@/features/auth/permissions/usePermissions";
@@ -134,6 +135,10 @@ export function SettingsPage() {
     }
   }
 
+  const handleTwoFactorStatusChange = useCallback((enabled: boolean) => {
+    setAccount((current) => (current ? { ...current, twoFactorEnabled: enabled } : current));
+  }, []);
+
   return (
     <div className="space-y-6">
       <section className="animate-fade-up rounded-2xl border border-slate-200 bg-white p-5 shadow-panel transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg sm:p-6">
@@ -176,7 +181,13 @@ export function SettingsPage() {
         </nav>
 
         {activeTab === "account" ? (
-          <AccountSection account={account} error={accountError} loading={accountLoading} onRefresh={() => void refreshAccount()} />
+          <AccountSection
+            account={account}
+            error={accountError}
+            loading={accountLoading}
+            onRefresh={() => void refreshAccount()}
+            onTwoFactorStatusChange={handleTwoFactorStatusChange}
+          />
         ) : null}
         {activeTab === "users" && isAdmin ? <UsersSection currentUser={account ?? user} /> : null}
         {activeTab === "permissions" ? <PermissionsSection groups={permissionGroups} role={account?.role ?? permissions.role} /> : null}
@@ -206,12 +217,14 @@ function AccountSection({
   account,
   error,
   loading,
-  onRefresh
+  onRefresh,
+  onTwoFactorStatusChange
 }: {
   account: AuthUser | null;
   error: string | null;
   loading: boolean;
   onRefresh: () => void;
+  onTwoFactorStatusChange: (enabled: boolean) => void;
 }) {
   return (
     <SettingsCard
@@ -236,6 +249,8 @@ function AccountSection({
         <ReadonlyField label="Rol" value={getRoleLabel(account?.role)} />
         <ReadonlyField label="Estado" value={account?.active === false ? "Cuenta inactiva" : "Sesion activa"} />
       </div>
+
+      <TwoFactorSettingsCard initialEnabled={account?.twoFactorEnabled} onStatusChange={onTwoFactorStatusChange} />
 
       <ChangePasswordForm />
     </SettingsCard>

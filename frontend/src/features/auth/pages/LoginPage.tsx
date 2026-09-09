@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { ArrowRight, BarChart3, Boxes, ClipboardList, LockKeyhole, Mail, ShieldCheck, Truck } from "lucide-react";
+import { ArrowLeft, ArrowRight, BarChart3, Boxes, ClipboardList, KeyRound, LockKeyhole, Mail, ShieldCheck, Truck } from "lucide-react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
 import { PageLoader } from "@/components/ui/page-loader";
@@ -15,6 +15,22 @@ type LoginFormState = {
 
 type LoginFormErrors = Partial<Record<keyof LoginFormState, string>>;
 
+type TwoFactorChallenge = {
+  temporaryToken: string;
+  expiresIn: number;
+};
+
+const safeReturnPaths = new Set([
+  "/dashboard",
+  "/inventario",
+  "/pedidos",
+  "/envios",
+  "/transportistas",
+  "/bodegas",
+  "/reportes",
+  "/configuracion"
+]);
+
 const accessItems = [
   { label: "Inventario", icon: Boxes },
   { label: "Pedidos", icon: ClipboardList },
@@ -25,12 +41,16 @@ const accessItems = [
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { checkingSession, login, isAuthenticated, loading, error, clearError } = useAuth();
+  const { checkingSession, login, verifyTwoFactor, isAuthenticated, loading, error, clearError } = useAuth();
   const [form, setForm] = useState<LoginFormState>({ email: "", password: "" });
   const [formErrors, setFormErrors] = useState<LoginFormErrors>({});
+  const [challenge, setChallenge] = useState<TwoFactorChallenge | null>(null);
+  const [code, setCode] = useState("");
+  const [codeError, setCodeError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? "/dashboard";
+  const requestedPath = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
+  const from = requestedPath && safeReturnPaths.has(requestedPath) ? requestedPath : "/dashboard";
 
   if (isAuthenticated) {
     return <Navigate to={from} replace />;
@@ -67,11 +87,54 @@ export function LoginPage() {
     }
 
     try {
-      await login({ email: form.email.trim(), password: form.password });
+      const outcome = await login({ email: form.email.trim(), password: form.password });
+
+      if (outcome.requiresTwoFactor) {
+        setChallenge({ temporaryToken: outcome.temporaryToken, expiresIn: outcome.expiresIn });
+        setForm((current) => ({ ...current, password: "" }));
+        setCode("");
+        setCodeError(null);
+        return;
+      }
+
       navigate(from, { replace: true });
     } catch (loginError) {
       setSubmitError(getSafeErrorMessage(loginError));
     }
+  }
+
+  async function handleTwoFactorSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    clearError();
+    setSubmitError(null);
+
+    if (!challenge) {
+      return;
+    }
+
+    if (!/^\d{6}$/.test(code)) {
+      setCodeError("Ingresa un codigo de 6 digitos.");
+      return;
+    }
+
+    setCodeError(null);
+
+    try {
+      await verifyTwoFactor(challenge.temporaryToken, code);
+      setChallenge(null);
+      setCode("");
+      navigate(from, { replace: true });
+    } catch (verificationError) {
+      setSubmitError(getSafeErrorMessage(verificationError));
+    }
+  }
+
+  function cancelTwoFactor() {
+    clearError();
+    setSubmitError(null);
+    setCodeError(null);
+    setCode("");
+    setChallenge(null);
   }
 
   return (
@@ -121,52 +184,114 @@ export function LoginPage() {
             <div className="rounded-3xl border border-white/20 bg-white p-6 text-slate-950 shadow-2xl shadow-black/25 sm:p-8">
               <div>
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-brand-700">
-                  <LockKeyhole className="h-5 w-5" aria-hidden="true" />
+                  {challenge ? <KeyRound className="h-5 w-5" aria-hidden="true" /> : <LockKeyhole className="h-5 w-5" aria-hidden="true" />}
                 </div>
-                <h2 className="mt-5 text-2xl font-semibold tracking-tight">Panel de acceso</h2>
-                <p className="mt-2 text-sm text-slate-600">Ingresa tus credenciales para continuar.</p>
+                <h2 className="mt-5 text-2xl font-semibold tracking-tight">
+                  {challenge ? "Codigo de autenticacion" : "Panel de acceso"}
+                </h2>
+                <p className="mt-2 text-sm text-slate-600">
+                  {challenge
+                    ? "Ingresa el codigo de 6 digitos generado por tu aplicacion Authenticator."
+                    : "Ingresa tus credenciales para continuar."}
+                </p>
               </div>
 
-              <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
-                <TextInput
-                  label="Correo electronico"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  placeholder="correo@smartlogix.cl"
-                  value={form.email}
-                  error={formErrors.email}
-                  leadingIcon={<Mail className="h-4 w-4" aria-hidden="true" />}
-                  onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
-                />
-                <TextInput
-                  label="Contrasena"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  placeholder="Ingresa tu contrasena"
-                  value={form.password}
-                  error={formErrors.password}
-                  leadingIcon={<LockKeyhole className="h-4 w-4" aria-hidden="true" />}
-                  onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
-                />
+              {challenge ? (
+                <form className="mt-6 space-y-4" onSubmit={handleTwoFactorSubmit} noValidate>
+                  <TextInput
+                    label="Codigo de autenticacion"
+                    name="two-factor-code"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    pattern="[0-9]{6}"
+                    maxLength={6}
+                    autoFocus
+                    placeholder="000000"
+                    value={code}
+                    error={codeError ?? undefined}
+                    helperText={`El desafio expira en aproximadamente ${formatChallengeDuration(challenge.expiresIn)}.`}
+                    leadingIcon={<KeyRound className="h-4 w-4" aria-hidden="true" />}
+                    onChange={(event) => {
+                      setCode(event.target.value.replace(/\D/g, "").slice(0, 6));
+                      setCodeError(null);
+                      setSubmitError(null);
+                    }}
+                  />
 
-                {submitError || error ? (
-                  <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-                    {submitError ?? error}
-                  </div>
-                ) : null}
+                  {submitError || error ? (
+                    <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                      {submitError ?? error}
+                    </div>
+                  ) : null}
 
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? <Spinner size="sm" label="Validando credenciales" className="text-current" /> : null}
-                  {loading ? "Validando..." : "Iniciar sesion"}
-                  {!loading ? <ArrowRight className="h-4 w-4" aria-hidden="true" /> : null}
-                </Button>
-              </form>
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? <Spinner size="sm" label="Verificando codigo" className="text-current" /> : null}
+                    {loading ? "Verificando..." : "Verificar codigo"}
+                    {!loading ? <ArrowRight className="h-4 w-4" aria-hidden="true" /> : null}
+                  </Button>
+                  <Button type="button" variant="ghost" className="w-full" onClick={cancelTwoFactor} disabled={loading}>
+                    <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                    Volver al inicio de sesion
+                  </Button>
+                </form>
+              ) : (
+                <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
+                  <TextInput
+                    label="Correo electronico"
+                    name="email"
+                    type="email"
+                    autoComplete="username"
+                    placeholder="correo@smartlogix.cl"
+                    value={form.email}
+                    error={formErrors.email}
+                    leadingIcon={<Mail className="h-4 w-4" aria-hidden="true" />}
+                    onChange={(event) => {
+                      setForm((current) => ({ ...current, email: event.target.value }));
+                      setFormErrors((current) => ({ ...current, email: undefined }));
+                    }}
+                  />
+                  <TextInput
+                    label="Contrasena"
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
+                    placeholder="Ingresa tu contrasena"
+                    value={form.password}
+                    error={formErrors.password}
+                    leadingIcon={<LockKeyhole className="h-4 w-4" aria-hidden="true" />}
+                    onChange={(event) => {
+                      setForm((current) => ({ ...current, password: event.target.value }));
+                      setFormErrors((current) => ({ ...current, password: undefined }));
+                    }}
+                  />
+
+                  {submitError || error ? (
+                    <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                      {submitError ?? error}
+                    </div>
+                  ) : null}
+
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? <Spinner size="sm" label="Validando credenciales" className="text-current" /> : null}
+                    {loading ? "Validando..." : "Iniciar sesion"}
+                    {!loading ? <ArrowRight className="h-4 w-4" aria-hidden="true" /> : null}
+                  </Button>
+                </form>
+              )}
             </div>
           </div>
         </section>
       </div>
     </main>
   );
+}
+
+function formatChallengeDuration(seconds: number): string {
+  if (seconds < 60) {
+    return `${seconds} segundos`;
+  }
+
+  const minutes = Math.ceil(seconds / 60);
+  return `${minutes} ${minutes === 1 ? "minuto" : "minutos"}`;
 }

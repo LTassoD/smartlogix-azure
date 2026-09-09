@@ -14,11 +14,17 @@ import cl.duoc.smartlogix.identity.domain.exception.InvalidCredentialsException;
 import cl.duoc.smartlogix.identity.infrastructure.persistence.entity.RoleEntity;
 import cl.duoc.smartlogix.identity.infrastructure.persistence.entity.UserEntity;
 import cl.duoc.smartlogix.identity.infrastructure.persistence.repository.RoleRepository;
+import cl.duoc.smartlogix.identity.infrastructure.persistence.repository.TwoFactorChallengeRepository;
 import cl.duoc.smartlogix.identity.infrastructure.persistence.repository.UserRepository;
+import cl.duoc.smartlogix.identity.infrastructure.security.AuthenticationAttemptRateLimiter;
 import cl.duoc.smartlogix.identity.presentation.dto.request.ChangeOwnPasswordRequest;
 import cl.duoc.smartlogix.identity.presentation.dto.request.CreateUserRequest;
+import cl.duoc.smartlogix.identity.presentation.dto.request.ResetUserPasswordRequest;
+import cl.duoc.smartlogix.identity.presentation.dto.request.UpdateUserRequest;
 import cl.duoc.smartlogix.identity.presentation.dto.request.UpdateUserRoleRequest;
 import cl.duoc.smartlogix.identity.presentation.dto.response.UserResponse;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,6 +36,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 @ExtendWith(MockitoExtension.class)
 class UserManagementServiceImplTest {
 
+    private static final Instant NOW = Instant.parse("2026-01-01T00:00:00Z");
+
     @Mock
     private UserRepository userRepository;
 
@@ -38,6 +46,15 @@ class UserManagementServiceImplTest {
 
     @Mock
     private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private TwoFactorChallengeRepository challengeRepository;
+
+    @Mock
+    private AuthenticationAttemptRateLimiter rateLimiter;
+
+    @Mock
+    private Clock clock;
 
     @InjectMocks
     private UserManagementServiceImpl userManagementService;
@@ -94,7 +111,7 @@ class UserManagementServiceImplTest {
         UpdateUserRoleRequest request = new UpdateUserRoleRequest();
         request.setRole(RoleName.OPERATOR);
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(admin));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(admin));
         when(userRepository.countByActiveTrueAndRole_Name(RoleName.ADMIN)).thenReturn(1L);
 
         assertThatThrownBy(() -> userManagementService.updateRole(1L, request))
@@ -110,13 +127,17 @@ class UserManagementServiceImplTest {
         request.setCurrentPassword("OldPass123");
         request.setNewPassword("NewPass123");
 
-        when(userRepository.findByEmailIgnoreCase("operador@smartlogix.cl")).thenReturn(Optional.of(operator));
+        when(userRepository.findByEmailIgnoreCaseForUpdate("operador@smartlogix.cl"))
+                .thenReturn(Optional.of(operator));
         when(passwordEncoder.matches("OldPass123", "old-hash")).thenReturn(true);
         when(passwordEncoder.encode("NewPass123")).thenReturn("new-hash");
+        when(clock.instant()).thenReturn(NOW);
 
         userManagementService.changeOwnPassword("operador@smartlogix.cl", request);
 
         assertThat(operator.getPassword()).isEqualTo("new-hash");
+        verify(challengeRepository).invalidateActiveByUserId(2L, NOW);
+        verify(rateLimiter).reset("password:operador@smartlogix.cl");
     }
 
     @Test
@@ -127,12 +148,73 @@ class UserManagementServiceImplTest {
         request.setCurrentPassword("WrongPass123");
         request.setNewPassword("NewPass123");
 
-        when(userRepository.findByEmailIgnoreCase("operador@smartlogix.cl")).thenReturn(Optional.of(operator));
+        when(userRepository.findByEmailIgnoreCaseForUpdate("operador@smartlogix.cl"))
+                .thenReturn(Optional.of(operator));
         when(passwordEncoder.matches("WrongPass123", "old-hash")).thenReturn(false);
 
         assertThatThrownBy(() -> userManagementService.changeOwnPassword("operador@smartlogix.cl", request))
                 .isInstanceOf(InvalidCredentialsException.class)
                 .hasMessageContaining("actual");
+    }
+
+    @Test
+    void shouldUseWriteLockWhenUpdatingUserProfile() {
+        UserEntity operator = user(2L, "operador@smartlogix.cl", RoleName.OPERATOR, true);
+        UpdateUserRequest request = new UpdateUserRequest();
+        request.setFullName("Nombre actualizado");
+        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(operator));
+
+        UserResponse response = userManagementService.update(2L, request, "admin@smartlogix.cl");
+
+        assertThat(response.getFullName()).isEqualTo("Nombre actualizado");
+        verify(userRepository).findByIdForUpdate(2L);
+        verify(userRepository, never()).findById(2L);
+    }
+
+    @Test
+    void shouldUseWriteLockWhenResettingPassword() {
+        UserEntity operator = user(2L, "operador@smartlogix.cl", RoleName.OPERATOR, true);
+        ResetUserPasswordRequest request = new ResetUserPasswordRequest();
+        request.setNewPassword("NewPass123");
+        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(operator));
+        when(passwordEncoder.encode("NewPass123")).thenReturn("new-hash");
+        when(clock.instant()).thenReturn(NOW);
+
+        userManagementService.resetPassword(2L, request);
+
+        assertThat(operator.getPassword()).isEqualTo("new-hash");
+        verify(userRepository).findByIdForUpdate(2L);
+        verify(userRepository, never()).findById(2L);
+        verify(challengeRepository).invalidateActiveByUserId(2L, NOW);
+        verify(rateLimiter).reset("password:operador@smartlogix.cl");
+    }
+
+    @Test
+    void shouldUseWriteLockWhenDeactivatingUser() {
+        UserEntity operator = user(2L, "operador@smartlogix.cl", RoleName.OPERATOR, true);
+        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(operator));
+        when(clock.instant()).thenReturn(NOW);
+
+        UserResponse response = userManagementService.deactivate(2L, "admin@smartlogix.cl");
+
+        assertThat(response.getActive()).isFalse();
+        verify(userRepository).findByIdForUpdate(2L);
+        verify(userRepository, never()).findById(2L);
+        verify(challengeRepository).invalidateActiveByUserId(2L, NOW);
+    }
+
+    @Test
+    void shouldInvalidateChallengesWhenUpdateDeactivatesUser() {
+        UserEntity operator = user(2L, "operador@smartlogix.cl", RoleName.OPERATOR, true);
+        UpdateUserRequest request = new UpdateUserRequest();
+        request.setActive(false);
+        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(operator));
+        when(clock.instant()).thenReturn(NOW);
+
+        userManagementService.update(2L, request, "admin@smartlogix.cl");
+
+        assertThat(operator.getActive()).isFalse();
+        verify(challengeRepository).invalidateActiveByUserId(2L, NOW);
     }
 
     private CreateUserRequest createUserRequest(String email, String password, RoleName roleName) {

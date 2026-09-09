@@ -17,6 +17,6 @@ config:
 request:
   auth:
     type: bearer
-    token: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzbWFydGxvZ2l4LWlkZW50aXR5LXNlcnZpY2UiLCJzdWIiOiJhZG1pbkBzbWFydGxvZ2l4LmNsIiwicm9sZSI6IkFETUlOIiwiZXhwIjoxNzc4NzIwMDk1LCJpYXQiOjE3Nzg3MTY0OTUsInVzZXJJZCI6MX0.qUzPvuDNS6rECXSbdjZcYSq3pRCt0-raP96Fdxacp50
+    token: ""
 bundled: false
 extensions: {}

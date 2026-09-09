@@ -21,6 +21,15 @@ variables:
   - name: token
     value: ""
     enabled: true
+  - name: adminPassword
+    value: ""
+    enabled: true
+  - name: operatorPassword
+    value: ""
+    enabled: true
+  - name: viewerPassword
+    value: ""
+    enabled: true
   - name: orderId
     value: ""
     enabled: true

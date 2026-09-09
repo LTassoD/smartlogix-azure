@@ -2,6 +2,7 @@ package cl.duoc.smartlogix.identity.presentation.controller;
 
 import cl.duoc.smartlogix.identity.application.service.AuthService;
 import cl.duoc.smartlogix.identity.presentation.dto.request.LoginRequest;
+import cl.duoc.smartlogix.identity.presentation.dto.request.CompleteTwoFactorLoginRequest;
 import cl.duoc.smartlogix.identity.presentation.dto.response.LoginResponse;
 import cl.duoc.smartlogix.identity.presentation.dto.response.UserResponse;
 import cl.duoc.smartlogix.identity.shared.response.ApiResponse;
@@ -31,6 +32,17 @@ public class AuthController {
                 .success(true)
                 .message("Login successful")
                 .data(authService.login(request))
+                .build());
+    }
+
+    @PostMapping("/2fa")
+    public ResponseEntity<ApiResponse<LoginResponse>> completeTwoFactorLogin(
+            @Valid @RequestBody CompleteTwoFactorLoginRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.<LoginResponse>builder()
+                .success(true)
+                .message("Autenticación de dos factores completada")
+                .data(authService.completeTwoFactorLogin(request))
                 .build());
     }
 

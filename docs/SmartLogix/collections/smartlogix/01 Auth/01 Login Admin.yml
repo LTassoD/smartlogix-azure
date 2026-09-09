@@ -11,7 +11,7 @@ http:
     data: |-
       {
         "email": "admin@smartlogix.cl",
-        "password": "admin123"
+        "password": "{{adminPassword}}"
       }
   auth: none
 

@@ -171,8 +171,8 @@ http://localhost:15672
 
 Credenciales:
 
-- Usuario: `smartlogix`
-- Password: `smartlogix123`
+- Usuario: valor de `SMARTLOGIX_RABBITMQ_USERNAME`
+- Password: valor local de `SMARTLOGIX_RABBITMQ_PASSWORD`
 
 Queues relevantes:
 

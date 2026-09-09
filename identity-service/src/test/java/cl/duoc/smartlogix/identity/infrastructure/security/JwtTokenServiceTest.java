@@ -21,7 +21,7 @@ import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 
 class JwtTokenServiceTest {
 
-    private static final String SECRET = "smartlogix-academic-mvp-secret-key-change-later-minimum-64-characters";
+    private static final String SECRET = "test-only-jwt-secret-0123456789abcdef0123456789abcdef";
 
     @Test
     void shouldGenerateSignedJwtWithExpectedClaims() {

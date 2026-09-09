@@ -11,14 +11,14 @@ Este servicio no autentica usuarios ni genera tokens. La autenticacion vive en
 - Puerto: `8083`
 - Base de datos: `smartlogix_shipping_db`
 - PostgreSQL local Docker: `localhost:5435`
-- Usuario: `smartlogix`
-- Password: `smartlogix123`
+- Usuario: variable `SMARTLOGIX_DB_USERNAME` (por defecto, `smartlogix`)
+- Password: variable obligatoria `SMARTLOGIX_DB_PASSWORD`
 - RabbitMQ AMQP: `localhost:5672`
 - Exchange consumido: `smartlogix.orders.exchange`
 - Queue: `smartlogix.shipping.order-created.queue`
 - Routing key: `order.created`
 
-Las credenciales son solo para entorno academico local.
+Las credenciales se configuran fuera de Git mediante variables de entorno.
 
 ## Ejecutar
 
@@ -47,7 +47,7 @@ Body:
 ```json
 {
   "email": "admin@smartlogix.cl",
-  "password": "admin123"
+  "password": "<SMARTLOGIX_SEED_ADMIN_PASSWORD>"
 }
 ```
 

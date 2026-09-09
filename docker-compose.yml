@@ -4,12 +4,18 @@ services:
     container_name: smartlogix-postgres-inventory
     environment:
       POSTGRES_DB: smartlogix_inventory_db
-      POSTGRES_USER: smartlogix
-      POSTGRES_PASSWORD: smartlogix123
+      POSTGRES_USER: ${SMARTLOGIX_DB_USERNAME:-smartlogix}
+      POSTGRES_PASSWORD: ${SMARTLOGIX_DB_PASSWORD:?Define SMARTLOGIX_DB_PASSWORD in your local environment}
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - smartlogix_inventory_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
     networks:
       - smartlogix-network
 
@@ -18,12 +24,18 @@ services:
     container_name: smartlogix-postgres-orders
     environment:
       POSTGRES_DB: smartlogix_orders_db
-      POSTGRES_USER: smartlogix
-      POSTGRES_PASSWORD: smartlogix123
+      POSTGRES_USER: ${SMARTLOGIX_DB_USERNAME:-smartlogix}
+      POSTGRES_PASSWORD: ${SMARTLOGIX_DB_PASSWORD:?Define SMARTLOGIX_DB_PASSWORD in your local environment}
     ports:
-      - "5434:5432"
+      - "127.0.0.1:5434:5432"
     volumes:
       - smartlogix_orders_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
     networks:
       - smartlogix-network
 
@@ -32,12 +44,18 @@ services:
     container_name: smartlogix-postgres-shipping
     environment:
       POSTGRES_DB: smartlogix_shipping_db
-      POSTGRES_USER: smartlogix
-      POSTGRES_PASSWORD: smartlogix123
+      POSTGRES_USER: ${SMARTLOGIX_DB_USERNAME:-smartlogix}
+      POSTGRES_PASSWORD: ${SMARTLOGIX_DB_PASSWORD:?Define SMARTLOGIX_DB_PASSWORD in your local environment}
     ports:
-      - "5435:5432"
+      - "127.0.0.1:5435:5432"
     volumes:
       - smartlogix_shipping_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
     networks:
       - smartlogix-network
 
@@ -46,12 +64,18 @@ services:
     container_name: smartlogix-postgres-identity
     environment:
       POSTGRES_DB: smartlogix_identity_db
-      POSTGRES_USER: smartlogix
-      POSTGRES_PASSWORD: smartlogix123
+      POSTGRES_USER: ${SMARTLOGIX_DB_USERNAME:-smartlogix}
+      POSTGRES_PASSWORD: ${SMARTLOGIX_DB_PASSWORD:?Define SMARTLOGIX_DB_PASSWORD in your local environment}
     ports:
-      - "5436:5432"
+      - "127.0.0.1:5436:5432"
     volumes:
       - smartlogix_identity_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
     networks:
       - smartlogix-network
 
@@ -59,13 +83,19 @@ services:
     image: rabbitmq:3-management
     container_name: smartlogix-rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: smartlogix
-      RABBITMQ_DEFAULT_PASS: smartlogix123
+      RABBITMQ_DEFAULT_USER: ${SMARTLOGIX_RABBITMQ_USERNAME:-smartlogix}
+      RABBITMQ_DEFAULT_PASS: ${SMARTLOGIX_RABBITMQ_PASSWORD:?Define SMARTLOGIX_RABBITMQ_PASSWORD in your local environment}
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
     volumes:
       - smartlogix_rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
     networks:
       - smartlogix-network
 
@@ -73,16 +103,185 @@ services:
     image: dpage/pgadmin4
     container_name: smartlogix-pgadmin
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@smartlogix.cl
-      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_DEFAULT_EMAIL: ${SMARTLOGIX_PGADMIN_EMAIL:-admin@smartlogix.cl}
+      PGADMIN_DEFAULT_PASSWORD: ${SMARTLOGIX_PGADMIN_PASSWORD:?Define SMARTLOGIX_PGADMIN_PASSWORD in your local environment}
     ports:
-      - "5050:80"
+      - "127.0.0.1:5050:80"
     volumes:
       - smartlogix_pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres-inventory:
+        condition: service_healthy
+      postgres-orders:
+        condition: service_healthy
+      postgres-shipping:
+        condition: service_healthy
+      postgres-identity:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/misc/ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - smartlogix-network
+
+  identity-service:
+    image: smartlogix/identity-service:local
+    build:
+      context: ./identity-service
+    container_name: smartlogix-identity-service
+    environment:
+      SMARTLOGIX_IDENTITY_DB_URL: jdbc:postgresql://postgres-identity:5432/smartlogix_identity_db
+      SMARTLOGIX_DB_USERNAME: ${SMARTLOGIX_DB_USERNAME:-smartlogix}
+      SMARTLOGIX_DB_PASSWORD: ${SMARTLOGIX_DB_PASSWORD:?Define SMARTLOGIX_DB_PASSWORD in your local environment}
+      SMARTLOGIX_JWT_SECRET: ${SMARTLOGIX_JWT_SECRET:?Define SMARTLOGIX_JWT_SECRET in your local environment}
+      SMARTLOGIX_JWT_ISSUER: ${SMARTLOGIX_JWT_ISSUER:?Define SMARTLOGIX_JWT_ISSUER in your local environment}
+      SMARTLOGIX_2FA_ENCRYPTION_PASSWORD: ${SMARTLOGIX_2FA_ENCRYPTION_PASSWORD:?Define SMARTLOGIX_2FA_ENCRYPTION_PASSWORD in your local environment}
+      SMARTLOGIX_2FA_ENCRYPTION_SALT: ${SMARTLOGIX_2FA_ENCRYPTION_SALT:?Define SMARTLOGIX_2FA_ENCRYPTION_SALT in your local environment}
+      SMARTLOGIX_SEED_ENABLED: ${SMARTLOGIX_SEED_ENABLED:-false}
+      SMARTLOGIX_SEED_ADMIN_PASSWORD: ${SMARTLOGIX_SEED_ADMIN_PASSWORD:-}
+      SMARTLOGIX_SEED_OPERATOR_PASSWORD: ${SMARTLOGIX_SEED_OPERATOR_PASSWORD:-}
+      SMARTLOGIX_SEED_VIEWER_PASSWORD: ${SMARTLOGIX_SEED_VIEWER_PASSWORD:-}
+    ports:
+      - "127.0.0.1:8084:8084"
+    depends_on:
+      postgres-identity:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8084/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+    networks:
+      - smartlogix-network
+
+  inventory-service:
+    image: smartlogix/inventory-service:local
+    build:
+      context: ./inventory-service
+    container_name: smartlogix-inventory-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-inventory:5432/smartlogix_inventory_db
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SMARTLOGIX_DB_USERNAME: ${SMARTLOGIX_DB_USERNAME:-smartlogix}
+      SMARTLOGIX_DB_PASSWORD: ${SMARTLOGIX_DB_PASSWORD:?Define SMARTLOGIX_DB_PASSWORD in your local environment}
+      SMARTLOGIX_RABBITMQ_USERNAME: ${SMARTLOGIX_RABBITMQ_USERNAME:-smartlogix}
+      SMARTLOGIX_RABBITMQ_PASSWORD: ${SMARTLOGIX_RABBITMQ_PASSWORD:?Define SMARTLOGIX_RABBITMQ_PASSWORD in your local environment}
+      SMARTLOGIX_JWT_SECRET: ${SMARTLOGIX_JWT_SECRET:?Define SMARTLOGIX_JWT_SECRET in your local environment}
+      SMARTLOGIX_JWT_ISSUER: ${SMARTLOGIX_JWT_ISSUER:?Define SMARTLOGIX_JWT_ISSUER in your local environment}
+    ports:
+      - "127.0.0.1:8081:8081"
+    depends_on:
+      postgres-inventory:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8081/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+    networks:
+      - smartlogix-network
+
+  order-service:
+    image: smartlogix/order-service:local
+    build:
+      context: ./order-service
+    container_name: smartlogix-order-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-orders:5432/smartlogix_orders_db
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SMARTLOGIX_DB_USERNAME: ${SMARTLOGIX_DB_USERNAME:-smartlogix}
+      SMARTLOGIX_DB_PASSWORD: ${SMARTLOGIX_DB_PASSWORD:?Define SMARTLOGIX_DB_PASSWORD in your local environment}
+      SMARTLOGIX_RABBITMQ_USERNAME: ${SMARTLOGIX_RABBITMQ_USERNAME:-smartlogix}
+      SMARTLOGIX_RABBITMQ_PASSWORD: ${SMARTLOGIX_RABBITMQ_PASSWORD:?Define SMARTLOGIX_RABBITMQ_PASSWORD in your local environment}
+      SMARTLOGIX_JWT_SECRET: ${SMARTLOGIX_JWT_SECRET:?Define SMARTLOGIX_JWT_SECRET in your local environment}
+      SMARTLOGIX_JWT_ISSUER: ${SMARTLOGIX_JWT_ISSUER:?Define SMARTLOGIX_JWT_ISSUER in your local environment}
+    ports:
+      - "127.0.0.1:8082:8082"
+    depends_on:
+      postgres-orders:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8082/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+    networks:
+      - smartlogix-network
+
+  shipping-service:
+    image: smartlogix/shipping-service:local
+    build:
+      context: ./shipping-service
+    container_name: smartlogix-shipping-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-shipping:5432/smartlogix_shipping_db
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SMARTLOGIX_DB_USERNAME: ${SMARTLOGIX_DB_USERNAME:-smartlogix}
+      SMARTLOGIX_DB_PASSWORD: ${SMARTLOGIX_DB_PASSWORD:?Define SMARTLOGIX_DB_PASSWORD in your local environment}
+      SMARTLOGIX_RABBITMQ_USERNAME: ${SMARTLOGIX_RABBITMQ_USERNAME:-smartlogix}
+      SMARTLOGIX_RABBITMQ_PASSWORD: ${SMARTLOGIX_RABBITMQ_PASSWORD:?Define SMARTLOGIX_RABBITMQ_PASSWORD in your local environment}
+      SMARTLOGIX_JWT_SECRET: ${SMARTLOGIX_JWT_SECRET:?Define SMARTLOGIX_JWT_SECRET in your local environment}
+      SMARTLOGIX_JWT_ISSUER: ${SMARTLOGIX_JWT_ISSUER:?Define SMARTLOGIX_JWT_ISSUER in your local environment}
+    ports:
+      - "127.0.0.1:8083:8083"
+    depends_on:
+      postgres-shipping:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8083/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+    networks:
+      - smartlogix-network
+
+  api-gateway:
+    image: smartlogix/api-gateway:local
+    build:
+      context: ./api-gateway
+    container_name: smartlogix-api-gateway
+    environment:
+      SMARTLOGIX_IDENTITY_SERVICE_URL: http://identity-service:8084
+      SMARTLOGIX_INVENTORY_SERVICE_URL: http://inventory-service:8081
+      SMARTLOGIX_ORDERS_SERVICE_URL: http://order-service:8082
+      SMARTLOGIX_SHIPPING_SERVICE_URL: http://shipping-service:8083
+      SMARTLOGIX_JWT_SECRET: ${SMARTLOGIX_JWT_SECRET:?Define SMARTLOGIX_JWT_SECRET in your local environment}
+      SMARTLOGIX_JWT_ISSUER: ${SMARTLOGIX_JWT_ISSUER:?Define SMARTLOGIX_JWT_ISSUER in your local environment}
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      identity-service:
+        condition: service_healthy
+      inventory-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+      shipping-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
     networks:
       - smartlogix-network
 
   frontend:
+    image: smartlogix/frontend:local
     build:
       context: ./frontend
       args:
@@ -90,7 +289,16 @@ services:
         VITE_API_USE_DEV_PROXY: "false"
     container_name: smartlogix-frontend
     ports:
-      - "5173:80"
+      - "127.0.0.1:5173:80"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
     networks:
       - smartlogix-network
 
