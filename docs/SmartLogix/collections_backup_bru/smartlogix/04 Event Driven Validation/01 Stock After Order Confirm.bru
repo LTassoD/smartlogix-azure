@@ -1,0 +1,15 @@
+meta {
+  name: Stock After Order Confirm
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/inventory/stock/product/1
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+}

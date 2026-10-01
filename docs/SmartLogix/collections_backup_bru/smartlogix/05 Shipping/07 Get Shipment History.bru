@@ -1,0 +1,15 @@
+meta {
+  name: Get Shipment History
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/api/shipping/shipments/{{shipmentId}}/history
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+}

@@ -1,0 +1,30 @@
+info:
+  name: Assign Carrier
+  type: http
+  seq: 5
+
+http:
+  method: PATCH
+  url: http://localhost:8083/api/shipping/shipments/{{shipmentId}}/assign-carrier
+  body:
+    type: json
+    data: |-
+      {
+        "carrierCode": "CHILEXPRESS",
+        "destinationCity": "Santiago"
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("debe responder 200 o 400 si el envio no esta en estado asignable", function () {
+          expect([200, 400]).to.include(res.status);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

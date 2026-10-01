@@ -1,0 +1,65 @@
+info:
+  name: Shipments
+  type: http
+  seq: 3
+
+http:
+  method: GET
+  url: http://localhost:8083/api/shipping/shipments
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        const body = typeof res.body === "string" ? JSON.parse(res.body || "{}") : (res.body || {});
+        const shipments = Array.isArray(body.data) ? body.data : (Array.isArray(body) ? body : []);
+        const assignableStatuses = ["CREATED", "PENDING_ASSIGNMENT", "FAILED"];
+        const assignableShipment = shipments.find((item) => assignableStatuses.includes(item.status));
+        const shipment = assignableShipment || shipments[0];
+
+        if (shipment && shipment.id) {
+          bru.setVar("shipmentId", String(shipment.id));
+          try {
+            bru.setEnvVar("shipmentId", String(shipment.id), { persist: true });
+          } catch (error) {
+            console.log("shipmentId disponible solo en variables de ejecucion");
+          }
+
+          if (shipment.orderId) {
+            bru.setVar("orderId", String(shipment.orderId));
+            try {
+              bru.setEnvVar("orderId", String(shipment.orderId), { persist: true });
+            } catch (error) {
+              console.log("orderId disponible solo en variables de ejecucion");
+            }
+          }
+
+          if (shipment.shipmentNumber) {
+            bru.setVar("shipmentNumber", String(shipment.shipmentNumber));
+            try {
+              bru.setEnvVar("shipmentNumber", String(shipment.shipmentNumber), { persist: true });
+            } catch (error) {
+              console.log("shipmentNumber disponible solo en variables de ejecucion");
+            }
+          }
+
+          if (assignableShipment) {
+            console.log("Envio asignable seleccionado:", shipment.id, shipment.status, "orderId:", shipment.orderId);
+          } else {
+            console.log("No hay envios asignables. Se selecciono un envio existente solo para consultas:", shipment.id, shipment.status, "orderId:", shipment.orderId);
+          }
+        } else {
+          console.log("No hay envios registrados. Crea y confirma un pedido antes de ejecutar ShippingService.");
+        }
+    - type: tests
+      code: |-
+        test("debe responder 200", function () {
+          expect(res.status).to.equal(200);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

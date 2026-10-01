@@ -1,0 +1,30 @@
+name: Local
+variables:
+  - name: baseUrl
+    value: http://localhost:8080
+  - name: gatewayUrl
+    value: http://localhost:8080
+  - name: identityUrl
+    value: http://localhost:8084
+  - name: inventoryUrl
+    value: http://localhost:8081
+  - name: ordersUrl
+    value: http://localhost:8082
+  - name: shippingUrl
+    value: http://localhost:8083
+  - name: token
+    value: ""
+  - name: orderId
+    value: "3"
+  - name: orderNumber
+    value: ORD-20260513-44533
+  - name: shipmentId
+    value: ""
+  - name: shipmentNumber
+    value: ""
+  - name: productId
+    value: "1"
+  - name: warehouseId
+    value: "1"
+  - name: customerId
+    value: "1"

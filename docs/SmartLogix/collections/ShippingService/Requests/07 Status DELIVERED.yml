@@ -1,0 +1,30 @@
+info:
+  name: Status DELIVERED
+  type: http
+  seq: 7
+
+http:
+  method: PATCH
+  url: http://localhost:8083/api/shipping/shipments/{{shipmentId}}/status
+  body:
+    type: json
+    data: |-
+      {
+        "status": "DELIVERED",
+        "comment": "Envio entregado desde Bruno"
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("debe responder 200 o 400 si la transicion de estado no aplica", function () {
+          expect([200, 400]).to.include(res.status);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

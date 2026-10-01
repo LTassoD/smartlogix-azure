@@ -1,0 +1,15 @@
+meta {
+  name: Customers
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{ordersUrl}}/api/orders/customers
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+}

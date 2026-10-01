@@ -1,0 +1,23 @@
+meta {
+  name: Change Shipment To DELIVERED
+  type: http
+  seq: 6
+}
+
+patch {
+  url: {{baseUrl}}/api/shipping/shipments/{{shipmentId}}/status
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "status": "DELIVERED",
+    "comment": "Envio entregado desde Bruno"
+  }
+}

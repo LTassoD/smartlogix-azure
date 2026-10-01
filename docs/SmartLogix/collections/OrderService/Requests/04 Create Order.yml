@@ -1,0 +1,74 @@
+info:
+  name: Create Order
+  type: http
+  seq: 4
+
+http:
+  method: POST
+  url: http://localhost:8082/api/orders
+  body:
+    type: json
+    data: |-
+      {
+        "customerId": 1,
+        "notes": "Pedido demo flujo completo Bruno",
+        "items": [
+          {
+            "productId": 1,
+            "warehouseId": 1,
+            "sku": "SKU-001",
+            "productName": "Notebook Lenovo",
+            "unitPrice": 650000,
+            "quantity": 1
+          }
+        ]
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        const body = typeof res.body === "string" ? JSON.parse(res.body || "{}") : (res.body || {});
+        const data = body.data || body;
+
+        const orderId = data.id;
+        const orderNumber = data.orderNumber;
+
+        if (!orderId) {
+          throw new Error("No se encontro orderId en la respuesta de creacion de pedido");
+        }
+
+        bru.setVar("orderId", String(orderId));
+        try {
+          bru.setEnvVar("orderId", String(orderId), { persist: true });
+        } catch (error) {
+          console.log("orderId disponible solo en variables de ejecucion");
+        }
+
+        if (orderNumber) {
+          bru.setVar("orderNumber", String(orderNumber));
+          try {
+            bru.setEnvVar("orderNumber", String(orderNumber), { persist: true });
+          } catch (error) {
+            console.log("orderNumber disponible solo en variables de ejecucion");
+          }
+        }
+
+        console.log("Pedido guardado:", orderId, orderNumber);
+    - type: tests
+      code: |-
+        test("crear pedido debe responder 200 o 201", function () {
+          expect([200, 201]).to.include(res.status);
+        });
+
+        test("crear pedido debe retornar id", function () {
+          const body = typeof res.body === "string" ? JSON.parse(res.body || "{}") : (res.body || {});
+          expect(body.data.id).to.exist;
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

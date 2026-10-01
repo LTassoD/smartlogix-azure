@@ -1,0 +1,58 @@
+﻿info:
+  name: "Shipment Created By Order"
+  type: http
+  seq: 3
+
+http:
+  method: GET
+  url: "http://localhost:8080/api/shipping/shipments/order/{{orderId}}"
+  body:
+    type: none
+  auth:
+    type: bearer
+    token: "{{token}}"
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        const body = typeof res.body === "string" ? JSON.parse(res.body || "{}") : (res.body || {});
+        const data = body.data || body;
+        
+        const shipmentId = data.id;
+        const shipmentNumber = data.shipmentNumber;
+        
+        if (!shipmentId) {
+          throw new Error("No se encontro shipmentId en la respuesta del envio por orderId");
+        }
+        
+        bru.setVar("shipmentId", String(shipmentId));
+        try {
+          bru.setEnvVar("shipmentId", String(shipmentId), { persist: true });
+        } catch (error) {
+          console.log("shipmentId disponible solo en variables de ejecucion");
+        }
+        
+        if (shipmentNumber) {
+          bru.setVar("shipmentNumber", String(shipmentNumber));
+          try {
+            bru.setEnvVar("shipmentNumber", String(shipmentNumber), { persist: true });
+          } catch (error) {
+            console.log("shipmentNumber disponible solo en variables de ejecucion");
+          }
+        }
+        
+        console.log("Envio guardado:", shipmentId, shipmentNumber);
+    - type: tests
+      code: |-
+        test("consulta de envio por pedido debe responder 200", function () {
+          expect(res.status).to.equal(200);
+        });
+        
+        test("consulta de envio debe retornar id", function () {
+          const body = typeof res.body === "string" ? JSON.parse(res.body || "{}") : (res.body || {});
+          expect(body.data.id).to.exist;
+        });
+
+settings:
+  encodeUrl: true

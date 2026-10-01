@@ -1,0 +1,15 @@
+meta {
+  name: Get Customer By Id
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/orders/customers/{{customerId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+}

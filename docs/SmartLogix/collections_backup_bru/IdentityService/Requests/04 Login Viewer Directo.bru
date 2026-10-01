@@ -1,0 +1,29 @@
+meta {
+  name: Login Viewer Directo
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{identityUrl}}/api/auth/login
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "email": "viewer@smartlogix.cl",
+    "password": "{{viewerPassword}}"
+  }
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (body && body.data && body.data.accessToken) {
+    bru.setEnvVar("token", body.data.accessToken);
+  }
+}

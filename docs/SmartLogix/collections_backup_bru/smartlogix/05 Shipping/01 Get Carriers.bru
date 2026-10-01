@@ -1,0 +1,15 @@
+meta {
+  name: Get Carriers
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/shipping/carriers
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+}

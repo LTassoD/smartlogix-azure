@@ -1,0 +1,5 @@
+﻿opencollection: 1.0.0
+info:
+  name: "ApiGateway"
+  version: 1.0.0
+  description: "SmartLogix API Gateway requests"

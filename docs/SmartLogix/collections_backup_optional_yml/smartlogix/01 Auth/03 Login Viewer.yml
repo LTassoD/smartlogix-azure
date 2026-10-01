@@ -1,0 +1,32 @@
+﻿info:
+  name: "Login Viewer"
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/auth/login"
+  body:
+    type: json
+    data: |-
+        {
+          "email": "viewer@smartlogix.cl",
+          "password": "{{viewerPassword}}"
+        }
+  auth: none
+  headers:
+    - name: "Content-Type"
+      value: "application/json"
+      disabled: false
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+          const body = res.getBody();
+          if (body && body.data && body.data.accessToken) {
+            bru.setEnvVar("token", body.data.accessToken);
+          }
+
+settings:
+  encodeUrl: true

@@ -1,0 +1,15 @@
+meta {
+  name: Inventory Through Gateway
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{gatewayUrl}}/api/inventory/products
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+}

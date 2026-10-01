@@ -1,0 +1,10 @@
+name: Local
+variables:
+  - name: token
+    value: ""
+  - name: adminPassword
+    value: ""
+  - name: operatorPassword
+    value: ""
+  - name: viewerPassword
+    value: ""

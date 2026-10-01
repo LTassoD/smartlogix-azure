@@ -1,0 +1,23 @@
+info:
+  name: Confirm Order
+  type: http
+  seq: 5
+
+http:
+  method: PATCH
+  url: http://localhost:8082/api/orders/{{orderId}}/confirm
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("debe responder 200", function () {
+          expect(res.status).to.equal(200);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

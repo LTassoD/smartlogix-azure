@@ -1,0 +1,34 @@
+﻿info:
+  name: "Assign Carrier"
+  type: http
+  seq: 4
+
+http:
+  method: PATCH
+  url: "http://localhost:8080/api/shipping/shipments/{{shipmentId}}/assign-carrier"
+  body:
+    type: json
+    data: |-
+      {
+        "carrierCode": "CHILEXPRESS",
+        "destinationCity": "Santiago"
+      }
+  auth:
+    type: bearer
+    token: "{{token}}"
+
+headers:
+  - name: Content-Type
+    value: application/json
+    enabled: true
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("debe responder 200", function () {
+          expect(res.status).to.equal(200);
+        });
+
+settings:
+  encodeUrl: true

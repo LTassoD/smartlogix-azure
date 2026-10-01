@@ -1,0 +1,15 @@
+meta {
+  name: Shipping Through Gateway
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{gatewayUrl}}/api/shipping/shipments
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+}

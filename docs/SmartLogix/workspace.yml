@@ -1,0 +1,22 @@
+opencollection: 1.0.0
+info:
+  name: "SmartLogix"
+  type: workspace
+
+collections:
+  - name: "ApiGateway"
+    path: "collections/ApiGateway"
+  - name: "IdentityService"
+    path: "collections/IdentityService"
+  - name: "InventoryService"
+    path: "collections/InventoryService"
+  - name: "OrderService"
+    path: "collections/OrderService"
+  - name: "ShippingService"
+    path: "collections/ShippingService"
+  - name: "smartlogix"
+    path: "collections/smartlogix"
+
+specs:
+
+docs: ''

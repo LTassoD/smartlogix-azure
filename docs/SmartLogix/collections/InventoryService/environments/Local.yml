@@ -1,0 +1,44 @@
+﻿name: Local
+variables:
+  - name: baseUrl
+    value: "http://localhost:8080"
+    enabled: true
+  - name: gatewayUrl
+    value: "http://localhost:8080"
+    enabled: true
+  - name: identityUrl
+    value: "http://localhost:8084"
+    enabled: true
+  - name: inventoryUrl
+    value: "http://localhost:8081"
+    enabled: true
+  - name: ordersUrl
+    value: "http://localhost:8082"
+    enabled: true
+  - name: shippingUrl
+    value: "http://localhost:8083"
+    enabled: true
+  - name: token
+    value: ""
+    enabled: true
+  - name: orderId
+    value: ""
+    enabled: true
+  - name: orderNumber
+    value: ""
+    enabled: true
+  - name: shipmentId
+    value: ""
+    enabled: true
+  - name: shipmentNumber
+    value: ""
+    enabled: true
+  - name: productId
+    value: "1"
+    enabled: true
+  - name: warehouseId
+    value: "1"
+    enabled: true
+  - name: customerId
+    value: "1"
+    enabled: true

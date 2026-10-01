@@ -1,0 +1,23 @@
+meta {
+  name: Assign Carrier
+  type: http
+  seq: 5
+}
+
+patch {
+  url: {{shippingUrl}}/api/shipping/shipments/{{shipmentId}}/assign-carrier
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "carrierCode": "CHILEXPRESS",
+    "destinationCity": "Santiago"
+  }
+}

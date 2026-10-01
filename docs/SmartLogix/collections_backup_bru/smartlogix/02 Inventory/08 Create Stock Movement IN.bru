@@ -1,0 +1,27 @@
+meta {
+  name: Create Stock Movement IN
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/api/inventory/stock/movements
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "productId": 1,
+    "warehouseId": 1,
+    "type": "IN",
+    "quantity": 5,
+    "reason": "Carga manual desde Bruno",
+    "referenceCode": "BRUNO-IN-001"
+  }
+}

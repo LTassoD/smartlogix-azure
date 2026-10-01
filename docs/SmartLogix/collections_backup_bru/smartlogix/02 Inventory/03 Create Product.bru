@@ -1,0 +1,25 @@
+meta {
+  name: Create Product
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/inventory/products
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "sku": "SKU-BRU-001",
+    "name": "Producto Bruno Demo",
+    "description": "Producto creado desde Bruno",
+    "unitPrice": 19990
+  }
+}

@@ -1,0 +1,54 @@
+﻿info:
+  name: "Login Viewer Directo"
+  type: http
+  seq: 4
+
+http:
+  method: POST
+  url: "http://localhost:8084/api/auth/login"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "viewer@smartlogix.cl",
+        "password": "{{viewerPassword}}"
+      }
+  auth: none
+
+headers:
+  - name: Content-Type
+    value: application/json
+    enabled: true
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        const body = typeof res.body === "string" ? JSON.parse(res.body || "{}") : (res.body || {});
+        const data = body.data || {};
+        const token = data.accessToken || body.accessToken;
+        
+        if (!token) {
+          throw new Error("No se encontro accessToken en la respuesta de login");
+        }
+        
+        bru.setVar("token", token);
+        try {
+          bru.setEnvVar("token", token, { persist: true });
+        } catch (error) {
+          console.log("Token disponible solo en variables de ejecucion");
+        }
+        console.log("Token guardado correctamente");
+    - type: tests
+      code: |-
+        test("login debe responder 200", function () {
+          expect(res.status).to.equal(200);
+        });
+        
+        test("login debe retornar accessToken", function () {
+          const body = typeof res.body === "string" ? JSON.parse(res.body || "{}") : (res.body || {});
+          expect(body.data.accessToken).to.be.a("string");
+        });
+
+settings:
+  encodeUrl: true

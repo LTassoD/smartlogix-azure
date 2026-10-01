@@ -1,0 +1,15 @@
+meta {
+  name: Inventory Movements After Order Confirm
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/inventory/stock/movements
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+}

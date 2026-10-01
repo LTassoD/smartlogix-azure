@@ -1,0 +1,22 @@
+﻿info:
+  name: "Gateway Routes"
+  type: http
+  seq: 6
+
+http:
+  method: GET
+  url: "http://localhost:8080/actuator/gateway/routes"
+  body:
+    type: none
+  auth: none
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("debe responder 200", function () {
+          expect(res.status).to.equal(200);
+        });
+
+settings:
+  encodeUrl: true

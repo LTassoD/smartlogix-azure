@@ -1,0 +1,11 @@
+meta {
+  name: Gateway Health
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{gatewayUrl}}/actuator/health
+  body: none
+  auth: none
+}

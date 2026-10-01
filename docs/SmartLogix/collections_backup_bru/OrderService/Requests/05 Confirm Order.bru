@@ -1,0 +1,15 @@
+meta {
+  name: Confirm Order
+  type: http
+  seq: 5
+}
+
+patch {
+  url: {{ordersUrl}}/api/orders/{{orderId}}/confirm
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+}

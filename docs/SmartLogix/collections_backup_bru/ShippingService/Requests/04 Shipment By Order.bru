@@ -1,0 +1,23 @@
+meta {
+  name: Shipment By Order
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{shippingUrl}}/api/shipping/shipments/order/{{orderId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (body && body.data) {
+    bru.setEnvVar("shipmentId", body.data.id);
+    bru.setEnvVar("shipmentNumber", body.data.shipmentNumber);
+  }
+}

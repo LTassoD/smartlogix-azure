@@ -1,0 +1,25 @@
+meta {
+  name: Create Customer
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/orders/customers
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "fullName": "Cliente Bruno Demo",
+    "email": "cliente.bruno.demo@smartlogix.cl",
+    "phone": "+56933333333",
+    "address": "Santiago"
+  }
+}

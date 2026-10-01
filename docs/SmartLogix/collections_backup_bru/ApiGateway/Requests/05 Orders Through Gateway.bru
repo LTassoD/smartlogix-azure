@@ -1,0 +1,15 @@
+meta {
+  name: Orders Through Gateway
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{gatewayUrl}}/api/orders
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+}

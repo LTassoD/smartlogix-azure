@@ -1,0 +1,15 @@
+meta {
+  name: Stock Movements
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{inventoryUrl}}/api/inventory/stock/movements
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+}

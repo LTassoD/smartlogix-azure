@@ -1,0 +1,18 @@
+﻿info:
+  name: "Get Warehouse By Id"
+  type: http
+  seq: 5
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/inventory/warehouses/{{warehouseId}}"
+  body:
+    type: none
+  auth: none
+  headers:
+    - name: "Authorization"
+      value: "Bearer {{token}}"
+      disabled: false
+
+settings:
+  encodeUrl: true

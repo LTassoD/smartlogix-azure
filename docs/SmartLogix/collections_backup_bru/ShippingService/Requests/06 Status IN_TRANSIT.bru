@@ -1,0 +1,23 @@
+meta {
+  name: Status IN_TRANSIT
+  type: http
+  seq: 6
+}
+
+patch {
+  url: {{shippingUrl}}/api/shipping/shipments/{{shipmentId}}/status
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "status": "IN_TRANSIT",
+    "comment": "Envio despachado desde Bruno"
+  }
+}

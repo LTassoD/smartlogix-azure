@@ -1,0 +1,15 @@
+meta {
+  name: Get Warehouse By Id
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/inventory/warehouses/{{warehouseId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+}

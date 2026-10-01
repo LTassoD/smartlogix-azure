@@ -1,0 +1,15 @@
+meta {
+  name: Stock Product
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{inventoryUrl}}/api/inventory/stock/product/{{productId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+}

@@ -1,0 +1,41 @@
+meta {
+  name: Create Order
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{ordersUrl}}/api/orders
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "customerId": 1,
+    "notes": "Pedido directo desde Bruno",
+    "items": [
+      {
+        "productId": 1,
+        "warehouseId": 1,
+        "sku": "SKU-001",
+        "productName": "Notebook Lenovo",
+        "unitPrice": 650000,
+        "quantity": 1
+      }
+    ]
+  }
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (body && body.data) {
+    bru.setEnvVar("orderId", body.data.id);
+    bru.setEnvVar("orderNumber", body.data.orderNumber);
+  }
+}
