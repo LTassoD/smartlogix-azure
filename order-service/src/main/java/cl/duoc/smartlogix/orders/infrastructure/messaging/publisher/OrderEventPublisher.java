@@ -1,63 +1,86 @@
 package cl.duoc.smartlogix.orders.infrastructure.messaging.publisher;
 
 // --- Importaciones ---
-import cl.duoc.smartlogix.orders.config.RabbitMQConfig;                                   // Nombres del exchange y routing keys
-import cl.duoc.smartlogix.orders.infrastructure.messaging.event.OrderCreatedEvent;        // DTO del evento de pedido creado
-import cl.duoc.smartlogix.orders.infrastructure.messaging.event.OrderCancelledEvent;      // DTO del evento de pedido cancelado
-import lombok.RequiredArgsConstructor;   // Genera el constructor con los campos final
-import lombok.extern.slf4j.Slf4j;        // Da un logger (log.warn, log.info)
-import org.springframework.amqp.AmqpException;                 // Excepción base de AMQP (fallo de conexión/envío)
-import org.springframework.amqp.rabbit.connection.CorrelationData; // ID del mensaje para los publisher confirms
-import org.springframework.amqp.rabbit.core.RabbitTemplate;    // Cliente de Spring para publicar/consumir
-import org.springframework.stereotype.Component;                // Registra esta clase como bean de Spring
+import cl.duoc.smartlogix.orders.config.ServiceBusConfig;                          // Destination del topic y propiedad eventType
+import cl.duoc.smartlogix.orders.infrastructure.messaging.event.OrderCreatedEvent;   // DTO del evento de pedido creado
+import cl.duoc.smartlogix.orders.infrastructure.messaging.event.OrderCancelledEvent; // DTO del evento de pedido cancelado
+import jakarta.jms.BytesMessage;                        // Cuerpo binario (JMS 3.1 no tiene Message.setObject)
+import jakarta.jms.ConnectionFactory;                    // Fabrica de conexiones JMS
+import lombok.RequiredArgsConstructor;                   // Genera el constructor con los campos final
+import lombok.extern.slf4j.Slf4j;                        // Da un logger (log.warn, log.info)
+import org.springframework.jms.core.JmsTemplate;         // Cliente JMS de Spring para publicar
+import org.springframework.jms.core.SessionCallback;     // Publicacion con control de la Session
+import org.springframework.stereotype.Component;           // Registra esta clase como bean de Spring
+import tools.jackson.databind.ObjectMapper;              // Serializa el evento a JSON (Jackson 3)
 
-// @Slf4j: crea el atributo `log` para escribir en consola.
-// @Component: Spring detecta esta clase y la inyecta donde se necesite.
+// Publicador de los eventos de pedido hacia Azure Service Bus.
 @Slf4j
 @Component
-// @RequiredArgsConstructor: genera automáticamente un constructor que recibe
-// todos los campos `final` (aquí: rabbitTemplate). Soluciona la inyección de dependencias.
 @RequiredArgsConstructor
 public class OrderEventPublisher {
 
-    // RabbitTemplate: el objeto que realmente conecta con RabbitMQ y envía el mensaje.
-    private final RabbitTemplate rabbitTemplate;
+    /** Valores de la propiedad eventType; replican las routing keys de RabbitMQ. */
+    private static final String ORDER_CREATED = "order.created";
+    private static final String ORDER_CANCELLED = "order.cancelled";
 
-    // Método público que publica el evento de pedido confirmado.
+    private final JmsTemplate jmsTemplate;
+    private final ObjectMapper objectMapper;
+    private final ServiceBusConfig serviceBusConfig;
+
+    /**
+     * Publica el evento de pedido confirmado.
+     *
+     * CAMBIO CLAVE RESPECTO A RABBITMQ: en AMQP 0-9-1 el tipo de evento viajaba en
+     * la routing key y el exchange ruteaba por ella. En Service Bus el topic no
+     * enruta: TODAS las subscriptions reciben el mensaje y cada una decide con un
+     * SqlFilter sobre la PROPIEDAD eventType. Por eso el publicador DEBE setear esa
+     * propiedad explicitamente; si se omite, ningun filtro coincide y las
+     * subscriptions de inventory y shipping no reciben nada.
+     */
     public void publishOrderCreated(OrderCreatedEvent event) {
-        try {
-            // convertAndSend = construir el mensaje (JSON vía el converter) y publicarlo.
-            // Parámetros: exchange de destino, routing key, el payload y un CorrelationData
-            //   que identifica el mensaje → el broker responderá con ack/nack (publisher confirms).
-            rabbitTemplate.convertAndSend(
-                    RabbitMQConfig.ORDERS_EXCHANGE,        // Mediator: "smartlogix.orders.exchange"
-                    RabbitMQConfig.ORDER_CREATED_ROUTING_KEY, // Regla: "order.created"
-                    event,                                 // Cuerpo: el OrderCreatedEvent serializado a JSON
-                    new CorrelationData("created-" + event.getOrderNumber()) // ID para identificar el ACK
-            );
-            // El exchange lo entrega a TODAS las colas enlazadas con "order.created"
-            // (la de inventory y la de shipping), desacoplando al productor de los consumidores.
-        } catch (AmqpException exception) {
-            // Cualquier problema (broker caído, exchange inexistente, etc.) NO reventará
-            // la transacción del pedido: solo se registra una advertencia y el pedido sigue.
-            log.warn("OrderCreatedEvent could not be published for orderNumber={}", event.getOrderNumber());
-        }
+        publish(ORDER_CREATED, event, event.getOrderNumber());
     }
 
-    // Publica el evento de CANCELACIÓN de pedido.
-    // Usa la routing key "order.cancelled": el exchange solo lo entregará a las colas
-    // que tengan un binding con ESA key (la cola de cancelaciones) — no a las de order.created.
-    // Así implementamos el "filtrado selectivo por routing key" de la guía 2.1.3.
+    // El filtrado selectivo que en RabbitMQ hacia la routing key "order.cancelled"
+    // ahora lo hace el SqlFilter de cada subscription: inventory-sub solo acepta
+    // order.created y shipping-cancelled-sub solo order.cancelled.
     public void publishOrderCancelled(OrderCancelledEvent event) {
+        publish(ORDER_CANCELLED, event, event.getOrderNumber());
+    }
+
+    /**
+     * Publica usando un SessionCallback en vez de convertAndSend.
+     *
+     * Se construye el BytesMessage a mano porque JMS 3.1 elimino los setters de
+     * Message (Message.setObject ya no existe): el cuerpo debe escribirse con
+     * BytesMessage.writeBytes. El consumidor lo recupera con
+     * message.getBody(byte[].class), que si sigue existiendo.
+     */
+    private void publish(String eventType, Object payload, String orderNumber) {
         try {
-            rabbitTemplate.convertAndSend(
-                    RabbitMQConfig.ORDERS_EXCHANGE,          // Mismo exchange compartido
-                    RabbitMQConfig.ORDER_CANCELLED_ROUTING_KEY, // "order.cancelled" → ruteo distinto
-                    event,                                   // Cuerpo: el OrderCancelledEvent (JSON)
-                    new CorrelationData("cancelled-" + event.getOrderNumber()) // ID para identificar el ACK
-            );
-        } catch (AmqpException exception) {
-            log.warn("OrderCancelledEvent could not be published for orderNumber={}", event.getOrderNumber());
+            byte[] body = objectMapper.writeValueAsBytes(payload);
+
+            jmsTemplate.execute(new SessionCallback<>() {
+                @Override
+                public Object doInJms(jakarta.jms.Session session) throws jakarta.jms.JMSException {
+                    var destination = session.createTopic(serviceBusConfig.ordersTopicDestination());
+
+                    try (var producer = session.createProducer(destination)) {
+                        BytesMessage message = session.createBytesMessage();
+                        message.writeBytes(body);
+                        message.setStringProperty(ServiceBusConfig.EVENT_TYPE_PROPERTY, eventType);
+                        message.setStringProperty("orderNumber", orderNumber);
+                        producer.send(message);
+                    }
+                    return null;
+                }
+            });
+        } catch (Exception exception) {
+            // Un fallo del broker NO revienta la transaccion del pedido: se registra
+            // y el pedido sigue su curso. Mismo criterio de resiliencia que la
+            // version con RabbitMQ.
+            log.warn("{} could not be published for orderNumber={} reason={}",
+                    eventType, orderNumber, exception.getMessage());
         }
     }
 }
