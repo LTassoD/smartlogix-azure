@@ -9,7 +9,6 @@ import jakarta.jms.JMSException;                      // Excepcion JMS
 import jakarta.jms.Message;                           // Mensaje AMQP crudo
 import jakarta.jms.MessageProducer;                   // Productor para el reply
 import jakarta.jms.Queue;                            // Cola de reply
-import jakarta.jms.QueueSession;                      // Session con soporte de JMSXGroupID
 import jakarta.jms.Session;                           // Constantes de acknowledgement mode
 import lombok.extern.slf4j.Slf4j;                     // logger
 import org.springframework.beans.factory.annotation.Value;
@@ -25,18 +24,14 @@ import tools.jackson.databind.ObjectMapper;          // (Jackson 3)
  * brecha de "mensajes sincronos" de la rubrica, que RabbitMQ cubria con
  * request/reply directo y que aqui se resuelve con dos colas de Service Bus.
  *
- * DETALLE CRITICO — SESSION ID Y RESPUESTAS A LA MISMA COLA:
- * Las dos colas tienen Sessions habilitadas, y en AMQP 1.0 el cliente exige la
- * propiedad JMSXGroupID al ENVIAR a una cola con Sessions. Si el mensaje llega sin
- * ella, Service Bus lo rechaza. Para poder responder a la cola de reply hay que
- * abrir la sesion como QueueSession y reutilizar el MISMO session id del solicitante
- * (amqp.session-id), porque la regla de reenvio de Service_bus solo entrega el reply
- * al cliente cuya sesion发出一o la peticion. Sin esto la respuesta se encola pero
- * el solicitante nunca la recibe y el request/reply expira por timeout.
- *
- * Por eso el listener recibe la sesion ya iniciada como transaccional-inactiva
- * (sessionTransacted=false) y usa JmsTemplate.execute con un callback, en lugar de
- * abrir una sesion nueva, que es lo que perderia la correlacion.
+ * POR QUE NO SE USA SESSIONS DE SERVICE BUS: se probo empiricamente que Qpid JMS
+ * no admite receptores "sessionful". Al intentar consumir de una cola con Sessions,
+ * el broker responde
+ *   "It is not possible for an entity that requires sessions to create a
+ *    non-sessionful message receiver"
+ * y Qpid no expone ninguna opcion publica para crear uno. Por eso las colas .req y
+ * .reply se crearon con enableSession=false y la correlacion se hace copiando la
+ * property stockCheckId de la peticion al reply.
  */
 @Slf4j
 @Component
@@ -67,22 +62,19 @@ public class StockCheckRequestConsumer {
     }
 
     /**
-     * Envia la respuesta a la cola de reply propagando el session id de la peticion.
-     *
-     * Service Bus enruta el reply al solicitante en funcion del session id, asi que
-     * la propiedad JMSXGroupID de la peticion se copia al reply.
+     * Envia la respuesta a la cola de reply copiando el correlation id de la peticion.
      */
     private void reply(Message request, StockCheckResponse response) throws JMSException {
         byte[] body = objectMapper.writeValueAsBytes(response);
 
-        // El session id viaja en la propiedad de la peticion y debe propagarse al
-        // reply; Service Bus usa esta cadena para localizar al cliente destino.
-        String sessionId = request.getStringProperty("JMSXGroupID");
+        // La correlacion se hace por property, no por Sessions: se probo que Qpid
+        // JMS no admite receptores sessionful en colas de Service Bus, asi que las
+        // colas .req/.reply se crearon con enableSession=false. El servidor copia el
+        // correlation id de la peticion al reply y el cliente lo usa para emparejar.
+        String correlationId = request.getStringProperty("stockCheckId");
 
-        // Connection + QueueSession (no JMSContext): la correlacion exige una sesion
-        // con session id AMQP y JMSContext solo ofrece la API simplificada.
         try (jakarta.jms.Connection connection = connectionFactory.createConnection()) {
-            QueueSession session = (QueueSession) connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+            Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
             connection.start();
             Queue replyQueue = session.createQueue(replyQueueUri);
 
@@ -92,9 +84,8 @@ public class StockCheckRequestConsumer {
                 reply.writeBytes(body);
                 reply.setStringProperty("eventType", "stock.check.completed");
                 reply.setStringProperty("orderNumber", response.orderNumber());
-                reply.setStringProperty("JMSXGroupID", sessionId);
                 // Correlacion: el cliente empareja respuesta y peticion con esto.
-                reply.setStringProperty("stockCheckId", sessionId);
+                reply.setStringProperty("stockCheckId", correlationId);
                 reply.setJMSCorrelationID(request.getJMSMessageID());
                 producer.send(reply);
             }

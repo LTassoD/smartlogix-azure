@@ -12,7 +12,6 @@ import jakarta.jms.Message;                               // Mensaje AMQP
 import jakarta.jms.MessageConsumer;                       // Consumidor de la cola de reply
 import jakarta.jms.MessageProducer;                       // Productor hacia la cola de request
 import jakarta.jms.Queue;                                // Cola
-import jakarta.jms.QueueSession;                          // Session con soporte de JMSXGroupID
 import jakarta.jms.Session;                              // Constantes de acknowledgement mode
 import lombok.extern.slf4j.Slf4j;                         // logger
 import org.springframework.beans.factory.annotation.Value; // Inyecta la property del timeout
@@ -27,11 +26,10 @@ import tools.jackson.databind.ObjectMapper;              // Serializa/Deserializ
  * Es el equivalente de RabbitMQ convertSendAndReceive, implementado con las dos
  * colas de Service Bus (smartlogix.stock-check.req / .reply).
  *
- * POR QUE NO SE USA convertAndReceive: la cola de reply tiene SESSIONS habilitadas y
- * AMQP 1.0 exige la propiedad JMSXGroupID al enviar a una cola con Sessions.
- * convertAndReceive no permite fijarla, por lo que el broker rechazaria el envio.
- * La implementacion abre la sesion como QueueSession, fija JMSXGroupID y consume el
- * reply correlacionado.
+ * Se implementa a mano en vez de usar convertAndReceive porque la correlacion se
+ * hace por property (stockCheckId) y porque hace falta crear el consumidor del
+ * reply ANTES de enviar la peticion: si se enviara primero, el reply podria llegar
+ * antes de que exista el consumidor.
  *
  * Sin respuesta el metodo devuelve available=false tras agotar el timeout, de modo
  * que una caida del broker de inventario ni deja el pedido colgado ni revienta la
@@ -41,10 +39,23 @@ import tools.jackson.databind.ObjectMapper;              // Serializa/Deserializ
 @Component
 public class StockCheckClient {
 
-    /** Propiedad que AMQP 1.0 exige para enviar a colas con Sessions habilitadas. */
-    private static final String SESSION_ID_PROPERTY = "JMSXGroupID";
-
-    /** Property propia para correlacionar la respuesta con su peticion. */
+    /**
+     * Property propia para correlacionar la respuesta con su peticion.
+     *
+     * IMPORTANTE: se opto por correlacion por property y NO por Sessions de Service
+     * Bus. Se probo empiricamente que Qpid JMS NO admite receptores "sessionful":
+     * al intentar consumir de una cola con Sessions el broker responde
+     *   "It is not possible for an entity that requires sessions to create a
+     *    non-sessionful message receiver"
+     * y Qpid no expone ninguna opcion publica para crear uno. Las colas .req y .reply
+     * se crearon por eso con enableSession=false.
+     *
+     * Consecuencia a tener en cuenta: .reply es una cola compartida, asi que con
+     * VARIAS réplicas de order-service los replies se reparten round-robin y una
+     * réplica podria recibir el reply de otra. Con una sola instancia es correcto,
+     * que es el despliegue actual. Si se escalara horizontalmente, la solucion es
+     * dar a cada replica su propia cola de reply.
+     */
     private static final String CORRELATION_PROPERTY = "stockCheckId";
 
     private final ConnectionFactory connectionFactory;
@@ -66,24 +77,20 @@ public class StockCheckClient {
     /**
      * Envia la peticion a .req y espera el reply en .reply.
      *
-     * El session id agrupa la conversacion: Service Bus solo entrega el reply a la
-     * sesion que emitio la peticion, asi que se usa uno unico por llamada.
+     * La correlacion va por la property stockCheckId: un id unico por llamada, que
+     * el servidor copia al reply y el cliente usa para descartar ajenos.
      */
     public StockCheckResponse checkStock(
             Long orderId,
             String orderNumber,
             java.util.List<StockCheckRequest.Item> items) {
 
-        String sessionId = "stock-check-" + orderNumber + "-" + System.nanoTime();
+        String correlationId = "stock-check-" + orderNumber + "-" + System.nanoTime();
         try {
             byte[] body = objectMapper.writeValueAsBytes(new StockCheckRequest(orderId, orderNumber, items));
 
-            // Se usa la API clasica Connection + QueueSession y no JMSContext: la
-            // correlacion de Service Bus exige una QueueSession (session id AMQP) y
-            // JMSContext no expone sessions, solo la API simplificada.
             try (Connection connection = connectionFactory.createConnection()) {
-                QueueSession session = (QueueSession) connection.createSession(
-                        false, Session.AUTO_ACKNOWLEDGE);
+                Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
                 connection.start();
 
                 Queue requestQueue = session.createQueue(serviceBusConfig.stockCheckRequestQueue());
@@ -96,15 +103,14 @@ public class StockCheckClient {
                     // BytesMessage y el receptor lo lee con getBody(byte[].class).
                     BytesMessage request = session.createBytesMessage();
                     request.writeBytes(body);
-                    request.setStringProperty(SESSION_ID_PROPERTY, sessionId);
-                    request.setStringProperty(CORRELATION_PROPERTY, sessionId);
+                    request.setStringProperty(CORRELATION_PROPERTY, correlationId);
                     request.setStringProperty("orderNumber", orderNumber);
 
                     // El consumidor del reply se crea ANTES del envio: si se enviara
                     // primero, el reply podria llegar antes de que exista el consumidor.
                     producer.send(request);
 
-                    Message reply = pollReply(replyConsumer, sessionId);
+                    Message reply = pollReply(replyConsumer, correlationId);
                     if (reply == null) {
                         log.warn("StockCheckResponse not received in {}ms orderNumber={}",
                                 timeoutMillis, orderNumber);
