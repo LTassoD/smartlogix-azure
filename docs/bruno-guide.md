@@ -183,5 +183,5 @@ Capturar:
 - Envio creado automaticamente.
 - Transportista asignado.
 - Envio `IN_TRANSIT` y `DELIVERED`.
-- Queues de RabbitMQ.
+- Colas `smartlogix.stock-check.req/reply` y topico `smartlogix.orders.topic` en Azure Service Bus.
 - Tablas en pgAdmin.

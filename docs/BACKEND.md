@@ -52,7 +52,7 @@ El health agregado informa `UP`, `DEGRADED` o `DOWN` por servicio con mensajes p
 
 ## Variables relevantes
 
-Los `application.properties` de cada servicio definen puertos, conexion a PostgreSQL, RabbitMQ y secreto JWT compartido. No guardar secretos reales en el repositorio.
+Los `application.properties` de cada servicio definen puertos, conexion a PostgreSQL, Azure Service Bus (host, policy SAS) y secreto JWT compartido. No guardar secretos reales en el repositorio.
 
 ## Tests
 

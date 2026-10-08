@@ -161,23 +161,23 @@ Request:
 05 Shipping / Change Shipment To DELIVERED
 ```
 
-## 14. Mostrar RabbitMQ
+## 14. Mostrar la mensajeria en Azure Service Bus
 
-Abrir:
+Revisar en el portal (o con `az`) las colas `smartlogix.stock-check.req` /
+`smartlogix.stock-check.reply` y el topico `smartlogix.orders.topic` con sus
+suscripciones:
 
-```text
-http://localhost:15672
+```bash
+az servicebus namespace show -g rg-smartlogix-aca -n sb-smartlogix-ns
+az servicebus queue list -g rg-smartlogix-aca --namespace-name sb-smartlogix-ns
+az servicebus topic subscription list -g rg-smartlogix-aca --namespace-name sb-smartlogix-ns --topic-name smartlogix.orders.topic
 ```
 
-Credenciales:
+Suscripciones relevantes:
 
-- Usuario: valor de `SMARTLOGIX_RABBITMQ_USERNAME`
-- Password: valor local de `SMARTLOGIX_RABBITMQ_PASSWORD`
-
-Queues relevantes:
-
-- `smartlogix.inventory.order-created.queue`
-- `smartlogix.shipping.order-created.queue`
+- `inventory-sub` (recibe `order.created` y descuenta stock)
+- `shipping-created-sub` (recibe `order.created` y crea el envio)
+- `shipping-cancelled-sub` (recibe `order.cancelled`)
 
 ## 15. Mostrar pgAdmin
 

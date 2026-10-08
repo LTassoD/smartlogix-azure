@@ -14,9 +14,10 @@ flowchart LR
   Orders --> PgOrders["PostgreSQL Orders"]
   Shipping --> PgShipping["PostgreSQL Shipping"]
   Identity --> PgIdentity["PostgreSQL Identity"]
-  Orders --> Rabbit["RabbitMQ"]
-  Inventory --> Rabbit
-  Shipping --> Rabbit
+  Orders --> SB["Azure Service Bus"]
+  Inventory --> SB
+  Shipping --> SB
+  Orders -. stock check req/reply .-> Inventory
 ```
 
 ## Componentes
