@@ -1,8 +1,11 @@
 package cl.duoc.smartlogix.inventory.infrastructure.messaging.consumer;
 
 // --- Importaciones ---
+import cl.duoc.smartlogix.inventory.application.service.StockService;
 import cl.duoc.smartlogix.inventory.infrastructure.messaging.dto.StockCheckRequest;
 import cl.duoc.smartlogix.inventory.infrastructure.messaging.dto.StockCheckResponse;
+import cl.duoc.smartlogix.inventory.presentation.dto.request.StockCheckItem;
+import cl.duoc.smartlogix.inventory.presentation.dto.response.StockCheckAvailabilityResponse;
 import jakarta.jms.BytesMessage;                      // Cuerpo binario (JMS 3.1 no tiene Message.setObject)
 import jakarta.jms.ConnectionFactory;                 // Fabrica de conexiones JMS
 import jakarta.jms.JMSException;                      // Excepcion JMS
@@ -15,6 +18,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jms.annotation.JmsListener; // ANOTACIÓN CLAVE: suscribe a AMQP 1.0
 import org.springframework.stereotype.Component;       // bean de Spring
 import tools.jackson.databind.ObjectMapper;          // (Jackson 3)
+
+import java.util.List;
 
 /*
  * Servidor del request/reply SINCRONO de verificacion de stock.
@@ -40,13 +45,16 @@ public class StockCheckRequestConsumer {
     private final ConnectionFactory connectionFactory;
     private final ObjectMapper objectMapper;
     private final String replyQueueUri;
+    private final StockService stockService;
 
     public StockCheckRequestConsumer(
             ConnectionFactory connectionFactory,
             ObjectMapper objectMapper,
+            StockService stockService,
             @Value("${smartlogix.servicebus.stock-check.reply-destination}") String replyQueueUri) {
         this.connectionFactory = connectionFactory;
         this.objectMapper = objectMapper;
+        this.stockService = stockService;
         this.replyQueueUri = replyQueueUri;
     }
 
@@ -95,19 +103,28 @@ public class StockCheckRequestConsumer {
     }
 
     /**
-     * Logica de negocio provisional: valida contra el catalogo de stock real del
-     * servicio cuando exista; hoy responde disponible=true salvo items vacios,
-     * para no inventar reglas de negocio de inventario en el transporte.
+     * Delega en StockService.checkAvailability, que compara la cantidad solicitada
+     * contra el stock real por almacen (StockEntity.quantity).
      */
     private StockCheckResponse evaluate(StockCheckRequest request) {
-        if (request.items() == null || request.items().isEmpty()) {
-            return new StockCheckResponse(
-                    request.orderId(), request.orderNumber(), false,
-                    "Order has no items to check", java.util.List.of());
-        }
+        List<StockCheckItem> items = request.items() == null
+                ? java.util.List.of()
+                : request.items().stream()
+                        .map(i -> StockCheckItem.builder()
+                                .productId(i.productId())
+                                .warehouseId(i.warehouseId())
+                                .quantity(i.quantity())
+                                .build())
+                        .toList();
+
+        StockCheckAvailabilityResponse result = stockService.checkAvailability(items);
+
         return new StockCheckResponse(
-                request.orderId(), request.orderNumber(), true,
-                "All items available", java.util.List.of());
+                request.orderId(),
+                request.orderNumber(),
+                result.isAvailable(),
+                result.getDetail(),
+                result.getInsufficient());
     }
 
     private StockCheckRequest deserialize(Message message) throws JMSException {

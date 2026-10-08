@@ -8,8 +8,11 @@ import cl.duoc.smartlogix.orders.application.service.OrderService;             /
 import cl.duoc.smartlogix.orders.domain.enums.OrderStatus;                     // Estados CREATED, CONFIRMED, etc.
 import cl.duoc.smartlogix.orders.domain.exception.BusinessRuleException;        // Excepción de regla de negocio
 import cl.duoc.smartlogix.orders.domain.exception.ResourceNotFoundException;    // Excepción "no encontrado"
-import cl.duoc.smartlogix.orders.infrastructure.messaging.event.OrderCreatedEvent;      // Evento para RabbitMQ
-import cl.duoc.smartlogix.orders.infrastructure.messaging.event.OrderCancelledEvent;    // Evento de cancelación para RabbitMQ
+import cl.duoc.smartlogix.orders.infrastructure.messaging.client.StockCheckClient;
+import cl.duoc.smartlogix.orders.infrastructure.messaging.dto.StockCheckRequest;
+import cl.duoc.smartlogix.orders.infrastructure.messaging.dto.StockCheckResponse;
+import cl.duoc.smartlogix.orders.infrastructure.messaging.event.OrderCreatedEvent;      // Evento para Service Bus
+import cl.duoc.smartlogix.orders.infrastructure.messaging.event.OrderCancelledEvent;    // Evento de cancelación para Service Bus
 import cl.duoc.smartlogix.orders.infrastructure.messaging.event.OrderCreatedItemEvent;  // Ítems del evento
 import cl.duoc.smartlogix.orders.infrastructure.messaging.publisher.OrderEventPublisher; // PUBLICADOR: envía el evento
 import cl.duoc.smartlogix.orders.infrastructure.persistence.entity.CustomerEntity;
@@ -48,7 +51,8 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;                      // Persistencia de pedidos
     private final CustomerRepository customerRepository;                // Persistencia de clientes
     private final OrderStatusHistoryRepository orderStatusHistoryRepository; // Historial de cambios de estado
-    private final OrderEventPublisher orderEventPublisher;              // ENVÍA el OrderCreatedEvent a RabbitMQ
+    private final OrderEventPublisher orderEventPublisher;              // ENVÍA el OrderCreatedEvent a Service Bus
+    private final StockCheckClient stockCheckClient;                    // CONSULTA stock sincrónamente a inventory-service
 
     // create: construye y guarda un pedido nuevo (siempre queda en CREATED).
     @Override
@@ -142,7 +146,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     // confirm: atajo específico para confirmar ("CREATED → CONFIRMED").
-    // → PUBLICACIÓN SIEMPRE (aquí el estado destino es por definición CONFIRMED).
+    // → VERIFICACIÓN SINCRONA DE STOCK + PUBLICACIÓN SIEMPRE.
     @Override
     @Transactional
     public OrderResponse confirm(Long id) {
@@ -151,6 +155,19 @@ public class OrderServiceImpl implements OrderService {
         // Solo se puede confirmar un pedido que siga en CREATED.
         if (order.getStatus() != OrderStatus.CREATED) {
             throw new BusinessRuleException("Only CREATED orders can be confirmed");
+        }
+
+        // ★ VERIFICACIÓN SINCRONA: consulta stock a inventory-service vía request/reply.
+        // Si no hay stock suficiente, se rechaza la confirmación con BusinessRuleException.
+        List<StockCheckRequest.Item> items = order.getItems().stream()
+                .map(i -> new StockCheckRequest.Item(i.getProductId(), i.getWarehouseId(), i.getQuantity()))
+                .toList();
+
+        StockCheckResponse stockResponse = stockCheckClient.checkStock(
+                order.getId(), order.getOrderNumber(), items);
+
+        if (!stockResponse.available()) {
+            throw new BusinessRuleException("Insufficient stock: " + stockResponse.detail());
         }
 
         changeStatus(order, OrderStatus.CONFIRMED, "Order confirmed");

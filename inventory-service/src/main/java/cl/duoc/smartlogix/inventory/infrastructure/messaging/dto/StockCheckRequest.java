@@ -15,6 +15,6 @@ public record StockCheckRequest(
         List<Item> items) {
 
     /** Linea de pedido a verificar. */
-    public record Item(Long productId, int quantity) {
+    public record Item(Long productId, Long warehouseId, int quantity) {
     }
 }
