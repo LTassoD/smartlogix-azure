@@ -5,6 +5,10 @@ on:
     branches: [deploy, azure-deploy]
   workflow_dispatch:
 
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   ACR_NAME: smartlogix2026acr
   ACR_LOGIN_SERVER: smartlogix2026acr.azurecr.io
