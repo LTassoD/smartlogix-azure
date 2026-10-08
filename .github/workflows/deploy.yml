@@ -2,7 +2,7 @@ name: CI/CD SmartLogix
 
 on:
   push:
-    branches: [deploy]
+    branches: [deploy, azure-deploy]
   workflow_dispatch:
 
 env:
@@ -65,6 +65,15 @@ jobs:
       - name: Login to ACR
         run: az acr login --name ${{ env.ACR_NAME }}
 
+      - name: Upload compose to VM
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ env.VM_HOST }}
+          username: ${{ env.VM_USER }}
+          key: ${{ env.VM_SSH_KEY }}
+          source: "docker-compose.yml"
+          target: "/tmp/smartlogix"
+
       - name: Deploy to VM
         uses: appleboy/ssh-action@v1
         with:
@@ -72,6 +81,7 @@ jobs:
           username: ${{ env.VM_USER }}
           key: ${{ env.VM_SSH_KEY }}
           script: |
+            sudo cp /tmp/smartlogix/docker-compose.yml /opt/smartlogix/
             cd /opt/smartlogix
             docker compose pull
             docker compose up -d
