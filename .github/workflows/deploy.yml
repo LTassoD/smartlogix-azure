@@ -35,7 +35,7 @@ jobs:
 
       - name: Build and push Java services
         run: |
-          for svc in api-gateway identity-service order-service inventory-service shipping-service; do
+          for svc in api-gateway identity-service order-service inventory-service shipping-service sb-admin-service; do
             echo "=== Building $svc ==="
             cd $svc
             mvn -B -ntp package -DskipTests

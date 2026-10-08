@@ -16,3 +16,8 @@ envsubst '${SMARTLOGIX_GATEWAY_URL}' \
   > /etc/nginx/conf.d/default.conf
 
 echo "[start-nginx] config nginx generada en /etc/nginx/conf.d/default.conf"
+
+# nginx corre como usuario no root: pid a /tmp (writable) en lugar de /run.
+sed -i 's#/run/nginx.pid#/tmp/nginx.pid#' /etc/nginx/nginx.conf
+
+exec nginx -g 'daemon off;'

@@ -15,10 +15,11 @@ services:
     ports:
       - "8080:8080"
     environment:
-      SMARTLOGIX_IDENTITY_URL: http://identity:8084
-      SMARTLOGIX_ORDER_URL: http://order:8082
-      SMARTLOGIX_INVENTORY_URL: http://inventory:8081
-      SMARTLOGIX_SHIPPING_URL: http://shipping:8083
+      JAVA_TOOL_OPTIONS: ${SMARTLOGIX_JVM_OPTS:--Xmx512m}
+      SMARTLOGIX_IDENTITY_SERVICE_URL: http://identity:8084
+      SMARTLOGIX_INVENTORY_SERVICE_URL: http://inventory:8081
+      SMARTLOGIX_ORDERS_SERVICE_URL: http://order:8082
+      SMARTLOGIX_SHIPPING_SERVICE_URL: http://shipping:8083
       SMARTLOGIX_JWT_SECRET: ${SMARTLOGIX_JWT_SECRET}
       SMARTLOGIX_JWT_ISSUER: ${SMARTLOGIX_JWT_ISSUER:-smartlogix-identity-service}
     depends_on:
@@ -34,13 +35,18 @@ services:
     ports:
       - "8084:8084"
     environment:
-      SMARTLOGIX_DB_HOST: postgres-identity
-      SMARTLOGIX_DB_PORT: 5432
-      SMARTLOGIX_DB_NAME: smartlogix_identity_db
+      JAVA_TOOL_OPTIONS: ${SMARTLOGIX_JVM_OPTS:--Xmx512m}
+      SMARTLOGIX_IDENTITY_DB_URL: jdbc:postgresql://postgres-identity:5432/smartlogix_identity_db
       SMARTLOGIX_DB_USERNAME: ${SMARTLOGIX_DB_USERNAME:-smartlogix}
       SMARTLOGIX_DB_PASSWORD: ${SMARTLOGIX_DB_PASSWORD}
       SMARTLOGIX_JWT_SECRET: ${SMARTLOGIX_JWT_SECRET}
       SMARTLOGIX_JWT_ISSUER: ${SMARTLOGIX_JWT_ISSUER:-smartlogix-identity-service}
+      SMARTLOGIX_2FA_ENCRYPTION_PASSWORD: ${SMARTLOGIX_2FA_ENCRYPTION_PASSWORD}
+      SMARTLOGIX_2FA_ENCRYPTION_SALT: ${SMARTLOGIX_2FA_ENCRYPTION_SALT}
+      SMARTLOGIX_SEED_ENABLED: ${SMARTLOGIX_SEED_ENABLED:-true}
+      SMARTLOGIX_SEED_ADMIN_PASSWORD: ${SMARTLOGIX_SEED_ADMIN_PASSWORD:-Admin1234}
+      SMARTLOGIX_SEED_OPERATOR_PASSWORD: ${SMARTLOGIX_SEED_OPERATOR_PASSWORD:-Operator123}
+      SMARTLOGIX_SEED_VIEWER_PASSWORD: ${SMARTLOGIX_SEED_VIEWER_PASSWORD:-Viewer123}
     depends_on:
       postgres-identity:
         condition: service_healthy
@@ -52,9 +58,8 @@ services:
     ports:
       - "8082:8082"
     environment:
-      SMARTLOGIX_DB_HOST: postgres-order
-      SMARTLOGIX_DB_PORT: 5432
-      SMARTLOGIX_DB_NAME: smartlogix_order_db
+      JAVA_TOOL_OPTIONS: ${SMARTLOGIX_JVM_OPTS:--Xmx512m}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-order:5432/smartlogix_order_db
       SMARTLOGIX_DB_USERNAME: ${SMARTLOGIX_DB_USERNAME:-smartlogix}
       SMARTLOGIX_DB_PASSWORD: ${SMARTLOGIX_DB_PASSWORD}
       SMARTLOGIX_JWT_SECRET: ${SMARTLOGIX_JWT_SECRET}
@@ -73,9 +78,8 @@ services:
     ports:
       - "8081:8081"
     environment:
-      SMARTLOGIX_DB_HOST: postgres-inventory
-      SMARTLOGIX_DB_PORT: 5432
-      SMARTLOGIX_DB_NAME: smartlogix_inventory_db
+      JAVA_TOOL_OPTIONS: ${SMARTLOGIX_JVM_OPTS:--Xmx512m}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-inventory:5432/smartlogix_inventory_db
       SMARTLOGIX_DB_USERNAME: ${SMARTLOGIX_DB_USERNAME:-smartlogix}
       SMARTLOGIX_DB_PASSWORD: ${SMARTLOGIX_DB_PASSWORD}
       SMARTLOGIX_JWT_SECRET: ${SMARTLOGIX_JWT_SECRET}
@@ -94,9 +98,8 @@ services:
     ports:
       - "8083:8083"
     environment:
-      SMARTLOGIX_DB_HOST: postgres-shipping
-      SMARTLOGIX_DB_PORT: 5432
-      SMARTLOGIX_DB_NAME: smartlogix_shipping_db
+      JAVA_TOOL_OPTIONS: ${SMARTLOGIX_JVM_OPTS:--Xmx512m}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-shipping:5432/smartlogix_shipping_db
       SMARTLOGIX_DB_USERNAME: ${SMARTLOGIX_DB_USERNAME:-smartlogix}
       SMARTLOGIX_DB_PASSWORD: ${SMARTLOGIX_DB_PASSWORD}
       SMARTLOGIX_JWT_SECRET: ${SMARTLOGIX_JWT_SECRET}
@@ -107,6 +110,18 @@ services:
     depends_on:
       postgres-shipping:
         condition: service_healthy
+    networks:
+      - smartlogix-net
+
+  sb-admin:
+    image: smartlogix2026acr.azurecr.io/smartlogix/sb-admin-service:azure
+    ports:
+      - "8085:8085"
+    environment:
+      JAVA_TOOL_OPTIONS: ${SMARTLOGIX_JVM_OPTS:--Xmx512m}
+      SMARTLOGIX_SERVICEBUS_HOST: ${SMARTLOGIX_SERVICEBUS_HOST:-sb-smartlogix-ns.servicebus.windows.net}
+      SMARTLOGIX_SERVICEBUS_POLICY: smartlogix-admin
+      SMARTLOGIX_SERVICEBUS_KEY: ${SMARTLOGIX_SERVICEBUS_ADMIN_KEY}
     networks:
       - smartlogix-net
 
