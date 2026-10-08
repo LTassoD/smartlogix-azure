@@ -13,6 +13,9 @@ function readApiBaseUrl(): string {
   const configuredValue = readOptionalEnv("VITE_API_BASE_URL");
 
   if (!configuredValue) {
+    if (import.meta.env.PROD) {
+      return "";
+    }
     configWarnings.push(
       `Missing VITE_API_BASE_URL. Using development fallback ${DEFAULT_DEV_API_BASE_URL}.`
     );
@@ -23,8 +26,14 @@ function readApiBaseUrl(): string {
 }
 
 function normalizeBaseUrl(value: string): string {
+  const trimmed = value.trim();
+
+  if (trimmed === "") {
+    return "";
+  }
+
   try {
-    const url = new URL(value);
+    const url = new URL(trimmed);
     return url.toString().replace(/\/$/, "");
   } catch {
     configWarnings.push(
