@@ -10,7 +10,16 @@ SmartLogix es un sistema academico de gestion logistica para inventario, pedidos
 - `inventory-service`: productos, stock, bodegas y movimientos.
 - `order-service`: clientes, pedidos y estados.
 - `shipping-service`: envios, transportistas y asignaciones.
-- Infraestructura local: PostgreSQL por servicio, RabbitMQ y pgAdmin.
+- `sb-admin-service`: microservicio de administracion de la infraestructura de mensajeria (colas, topicos y suscripciones con filtros) expuesta como REST.
+- Infraestructura local: PostgreSQL por servicio y Azure Service Bus como broker de mensajeria (los mensajes de negocio viajan por las colas y el topico `smartlogix.orders.topic`).
+
+## Mensajeria y eventos
+
+SmartLogix usa Azure Service Bus (protocolo AMQP 1.0 con Qpid JMS):
+
+- **Sincrono (request/reply)**: al confirmar un pedido, `order-service` verifica disponibilidad de stock enviando un mensaje a la cola `smartlogix.stock-check.req`; `inventory-service` responde en la cola `smartlogix.stock-check.reply`. La correlacion se hace con la property `stockCheckId`.
+- **Asincrono (topic/suscripciones)**: al confirmar, se publica `OrderCreatedEvent` en `smartlogix.orders.topic`. La suscripcion `inventory-sub` registra los movimientos de stock y `shipping-created-sub` crea el envio; `shipping-cancelled-sub` recibe `OrderCancelledEvent`. La suscripcion `inventory-sub` usa el filtro SQL `eventType = 'order.created'`.
+- **DLQ nativa**: cada suscripcion tiene su cola `/$deadletterqueue`, con polizas de retry/backoff en los consumidores (reintento con `FixedBackOff`).
 
 ## Requisitos
 
@@ -35,7 +44,7 @@ La generación exacta de secretos, el flujo TOTP y la demostración completa est
 
 ## Ejecutar con Docker
 
-Con `.env` configurado, Docker Compose construye y levanta el frontend, los cinco servicios Java y toda la infraestructura local:
+Con `.env` configurado, Docker Compose construye y levanta el frontend, los seis servicios Java y toda la infraestructura local:
 
 ```bash
 docker compose up -d --build --wait --wait-timeout 300
@@ -56,6 +65,7 @@ cd inventory-service && mvnw.cmd spring-boot:run
 cd order-service && mvnw.cmd spring-boot:run
 cd shipping-service && mvnw.cmd spring-boot:run
 cd api-gateway && mvnw.cmd spring-boot:run
+cd sb-admin-service && mvnw.cmd spring-boot:run
 ```
 
 Puertos por defecto:
@@ -65,6 +75,7 @@ Puertos por defecto:
 - Orders: `http://localhost:8082`
 - Shipping: `http://localhost:8083`
 - Identity: `http://localhost:8084`
+- SB Admin: `http://localhost:8085`
 
 ## Ejecutar frontend manual
 
@@ -81,6 +92,7 @@ npm run dev
 - Orders: `http://localhost:8082/swagger-ui/index.html`
 - Shipping: `http://localhost:8083/swagger-ui/index.html`
 - Identity: `http://localhost:8084/swagger-ui/index.html`
+- SB Admin: `http://localhost:8085/swagger-ui/index.html`
 
 Los documentos OpenAPI estan en `/v3/api-docs` en cada servicio.
 
@@ -103,6 +115,7 @@ cd inventory-service && mvnw.cmd test
 cd order-service && mvnw.cmd test
 cd shipping-service && mvnw.cmd test
 cd api-gateway && mvnw.cmd test
+cd sb-admin-service && mvnw.cmd test
 ```
 
 ## Usuarios y roles
@@ -124,6 +137,7 @@ Cada usuario puede activar 2FA TOTP compatible con Google Authenticator, Microso
 - [Backend](docs/BACKEND.md)
 - [Roles y permisos](docs/ROLES_PERMISSIONS.md)
 - [Docker](docs/DOCKER.md)
+- [Despliegue en Azure (ACR, VM y GitHub Actions)](AZURE-DEPLOY.md)
 - [Testing](docs/TESTING.md)
 - [API](docs/API.md)
 - [Seguridad del login y 2FA TOTP](docs/SECURITY_2FA.md)
