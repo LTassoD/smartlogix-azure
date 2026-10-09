@@ -138,6 +138,7 @@ Cada usuario puede activar 2FA TOTP compatible con Google Authenticator, Microso
 - [Roles y permisos](docs/ROLES_PERMISSIONS.md)
 - [Docker](docs/DOCKER.md)
 - [Despliegue en Azure (ACR, VM y GitHub Actions)](AZURE-DEPLOY.md)
+- [Guía de implementación paso a paso en Azure](docs/IMPLEMENTACION_AZURE.md)
 - [Testing](docs/TESTING.md)
 - [API](docs/API.md)
 - [Seguridad del login y 2FA TOTP](docs/SECURITY_2FA.md)
