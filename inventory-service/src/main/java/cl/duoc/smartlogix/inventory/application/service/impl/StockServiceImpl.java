@@ -15,9 +15,7 @@ import cl.duoc.smartlogix.inventory.infrastructure.persistence.repository.StockM
 import cl.duoc.smartlogix.inventory.infrastructure.persistence.repository.StockRepository;
 import cl.duoc.smartlogix.inventory.infrastructure.persistence.repository.WarehouseRepository;
 import cl.duoc.smartlogix.inventory.presentation.dto.request.CreateStockMovementRequest;
-import cl.duoc.smartlogix.inventory.presentation.dto.request.StockCheckItem;
 import cl.duoc.smartlogix.inventory.presentation.dto.request.UpdateStockMinimumRequest;
-import cl.duoc.smartlogix.inventory.presentation.dto.response.StockCheckAvailabilityResponse;
 import cl.duoc.smartlogix.inventory.presentation.dto.response.StockMovementResponse;
 import cl.duoc.smartlogix.inventory.presentation.dto.response.StockResponse;
 import java.util.List;
@@ -90,40 +88,6 @@ public class StockServiceImpl implements StockService {
         return stockRepository.findByProductId(productId).stream()
                 .map(StockMapper::toResponse)
                 .toList();
-    }
-
-    /**
-     * Verifica stock suficiente por almacen para cada linea del pedido.
-     *
-     * Regla: para cada linea busca el StockEntity (producto + almacen) y compara
-     * la cantidad disponible contra la solicitada. Si no existe registro de stock
-     * para esa combinacion, se trata como disponible=0 (insuficiente).
-     */
-    @Override
-    @Transactional(readOnly = true)
-    public StockCheckAvailabilityResponse checkAvailability(List<StockCheckItem> items) {
-        List<String> insufficient = new java.util.ArrayList<>();
-
-        for (StockCheckItem item : items) {
-            int available = stockRepository
-                    .findByProductIdAndWarehouseId(item.getProductId(), item.getWarehouseId())
-                    .map(StockEntity::getQuantity)
-                    .orElse(0);
-
-            if (available < item.getQuantity()) {
-                insufficient.add("productId=" + item.getProductId()
-                        + " warehouseId=" + item.getWarehouseId()
-                        + " requested=" + item.getQuantity()
-                        + " available=" + available);
-            }
-        }
-
-        boolean ok = insufficient.isEmpty();
-        return StockCheckAvailabilityResponse.builder()
-                .available(ok)
-                .detail(ok ? "All items available" : "Insufficient stock for " + insufficient.size() + " item(s)")
-                .insufficient(insufficient)
-                .build();
     }
 
     @Override

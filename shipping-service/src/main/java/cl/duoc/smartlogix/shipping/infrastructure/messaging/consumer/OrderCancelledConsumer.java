@@ -1,67 +1,48 @@
 package cl.duoc.smartlogix.shipping.infrastructure.messaging.consumer;
 
 // --- Importaciones ---
-import cl.duoc.smartlogix.shipping.application.service.ShipmentService;               // Servicio que cancela el despacho
+import cl.duoc.smartlogix.shipping.application.service.ShipmentService;   // Servicio que cancela el despacho
+import cl.duoc.smartlogix.shipping.config.RabbitMQConfig;                // Nombre de la cola propia
 import cl.duoc.smartlogix.shipping.infrastructure.messaging.event.OrderCancelledEvent; // El evento recibido
-import jakarta.jms.JMSException;                                                       // Excepcion JMS
-import jakarta.jms.Message;                                                            // Mensaje AMQP crudo
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.jms.annotation.JmsListener; // Suscribe a la subscription
+import org.springframework.amqp.rabbit.annotation.RabbitListener; // Suscribe a la cola
 import org.springframework.stereotype.Component;
-import tools.jackson.databind.ObjectMapper;          // Deserializa el cuerpo JSON (Jackson 3)
 
 // Consumidor del evento "order.cancelled".
-//
-// En RabbitMQ la routing key "order.cancelled" lo separaba del flujo de confirmacion
-// porque cada flujo tenia su propia cola. Aqui el aislamiento lo hace el SqlFilter de
-// shipping-cancelled-sub: Service Bus nunca entrega cancelaciones a este listener si
-// no corresponde, y nunca entrega order.created a la subscription de cancelaciones.
+// Este consumer escucha la cola de cancelaciones — la routing key "order.cancelled"
+// lo separa del flujo de confirmación: al recibir el evento, cancela el despacho
+// asociado al pedido (si existe).
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class OrderCancelledConsumer {
 
     private final ShipmentService shipmentService;
-    private final ObjectMapper objectMapper;
 
-    // @JmsListener sobre la subscription de cancelaciones.
-    @JmsListener(destination = "${smartlogix.servicebus.shipping.cancelled-subscription-destination}")
-    public void consume(Message message) throws JMSException {
-        OrderCancelledEvent event = null;
+    // @RabbitListener en la cola de pedidos cancelados
+    // ("smartlogix.shipping.order-cancelled.queue").
+    @RabbitListener(queues = RabbitMQConfig.SHIPPING_ORDER_CANCELLED_QUEUE)
+    public void consume(OrderCancelledEvent event) {
         try {
-            event = deserialize(message);
-
             log.info(
                     "OrderCancelledEvent received orderId={} orderNumber={}",
-                    event == null ? null : event.getOrderId(),
-                    event == null ? null : event.getOrderNumber()
+                    event.getOrderId(),
+                    event.getOrderNumber()
             );
 
             // Cancela el despacho asociado al pedido (si existe).
             shipmentService.cancelByOrderId(event.getOrderId());
         } catch (Exception exception) {
-            // Al propagatear no se ACKea: Service Bus reentrega y, tras max-delivery-count,
-            // deriva el mensaje a la DLQ de shipping-cancelled-sub (auditoria).
+            // Mismo patrón que el consumer de order.created: propagamos la excepción
+            // para que el contenedor reintente (backoff) y, al agotar, el mensaje
+            // se rechace sin requeue → DLX → DLQ (auditoría, guía 2.2.2).
             log.warn(
-                    "OrderCancelledEvent could not be processed orderId={} orderNumber={} reason={}",
-                    event == null ? null : event.getOrderId(),
-                    event == null ? null : event.getOrderNumber(),
-                    exception.getMessage()
+                    "OrderCancelledEvent could not be processed orderId={} orderNumber={}",
+                    event.getOrderId(),
+                    event.getOrderNumber()
             );
             throw new RuntimeException(exception);
-        }
-    }
-
-    private OrderCancelledEvent deserialize(Message message) throws JMSException {
-        byte[] body = message.getBody(byte[].class);
-        if (body == null || body.length == 0) {
-            return null;
-        }
-        try {
-            return objectMapper.readValue(body, OrderCancelledEvent.class);
-        } catch (Exception e) {
-            throw new IllegalArgumentException("order.cancelled payload is not valid JSON", e);
         }
     }
 }

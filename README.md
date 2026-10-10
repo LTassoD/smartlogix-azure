@@ -2,6 +2,8 @@
 
 SmartLogix es un sistema academico de gestion logistica para inventario, pedidos, envios, transportistas, bodegas, reportes y configuracion administrativa. La aplicacion esta organizada como frontend React y microservicios Spring Boot protegidos con JWT.
 
+> **Rama `rabbitmq`:** variante que implementa la mensajeria exigida por la Evaluacion Parcial 2 con **RabbitMQ** (cluster de 2 nodos, exchanges `direct` y `topic`, colas con DLQ, consumidores `@RabbitListener` y microservicio administrador REST). La rama `azure-deploy` mantiene la version desplegada en Azure con Service Bus.
+
 ## Arquitectura
 
 - `frontend`: React, TypeScript, Vite, Tailwind, shadcn-style UI y Recharts.
@@ -10,16 +12,20 @@ SmartLogix es un sistema academico de gestion logistica para inventario, pedidos
 - `inventory-service`: productos, stock, bodegas y movimientos.
 - `order-service`: clientes, pedidos y estados.
 - `shipping-service`: envios, transportistas y asignaciones.
-- `sb-admin-service`: microservicio de administracion de la infraestructura de mensajeria (colas, topicos y suscripciones con filtros) expuesta como REST.
-- Infraestructura local: PostgreSQL por servicio y Azure Service Bus como broker de mensajeria (los mensajes de negocio viajan por las colas y el topico `smartlogix.orders.topic`).
+- `rabbit-admin-service`: microservicio de administracion de la infraestructura de mensajeria RabbitMQ (colas, exchanges y bindings) expuesta como REST.
+- Infraestructura local: PostgreSQL por servicio y un cluster **RabbitMQ de 2 nodos** como broker de mensajeria (exchange `direct` `smartlogix.orders.exchange` y exchange `topic` `smartlogix.orders.topic.exchange`).
 
 ## Mensajeria y eventos
 
-SmartLogix usa Azure Service Bus (protocolo AMQP 1.0 con Qpid JMS):
+SmartLogix usa RabbitMQ (AMQP 0-9-1 con Spring AMQP):
 
-- **Sincrono (request/reply)**: al confirmar un pedido, `order-service` verifica disponibilidad de stock enviando un mensaje a la cola `smartlogix.stock-check.req`; `inventory-service` responde en la cola `smartlogix.stock-check.reply`. La correlacion se hace con la property `stockCheckId`.
-- **Asincrono (topic/suscripciones)**: al confirmar, se publica `OrderCreatedEvent` en `smartlogix.orders.topic`. La suscripcion `inventory-sub` registra los movimientos de stock y `shipping-created-sub` crea el envio; `shipping-cancelled-sub` recibe `OrderCancelledEvent`. La suscripcion `inventory-sub` usa el filtro SQL `eventType = 'order.created'`.
-- **DLQ nativa**: cada suscripcion tiene su cola `/$deadletterqueue`, con polizas de retry/backoff en los consumidores (reintento con `FixedBackOff`).
+- **Exchange direct**: `smartlogix.orders.exchange`. `order-service` publica con routing keys `order.created` y `order.cancelled`; las colas de `inventory-service` y `shipping-service` se enlazan segun su routing key.
+- **Exchange topic**: `smartlogix.orders.topic.exchange`, con bindings por patron `order.#` para demostrar el enrutamiento por comodin.
+- **Colas con DLQ**: `smartlogix.inventory.order-created.queue`, `smartlogix.shipping.order-created.queue` y `smartlogix.shipping.order-cancelled.queue`, cada una con `x-dead-letter-exchange` hacia su DLX/DLQ (`smartlogix.inventory.dlq`, `smartlogix.shipping.dlq`). Los reintentos usan backoff (1s, 2s, 4s) y `default-requeue-rejected=false`.
+- **Consumidores** `@RabbitListener` agrupados por dominio en `infrastructure/messaging/consumer`, mas un `DeadLetterConsumer` por servicio que audita la DLQ (header `x-death`).
+- **Administracion REST**: `rabbit-admin-service` (puerto 8086) permite crear/borrar colas, exchanges y bindings (`POST/DELETE /api/admin/queues`, `/exchanges`, `/bindings`).
+
+El detalle completo (topologia, cluster y mapeo a la rubrica) esta en [Implementacion RabbitMQ](docs/IMPLEMENTACION_RABBITMQ.md).
 
 ## Requisitos
 
@@ -44,7 +50,7 @@ La generación exacta de secretos, el flujo TOTP y la demostración completa est
 
 ## Ejecutar con Docker
 
-Con `.env` configurado, Docker Compose construye y levanta el frontend, los seis servicios Java y toda la infraestructura local:
+Con `.env` configurado, Docker Compose construye y levanta el frontend, los seis servicios Java y toda la infraestructura local (incluido el cluster RabbitMQ de 2 nodos):
 
 ```bash
 docker compose up -d --build --wait --wait-timeout 300
@@ -65,7 +71,7 @@ cd inventory-service && mvnw.cmd spring-boot:run
 cd order-service && mvnw.cmd spring-boot:run
 cd shipping-service && mvnw.cmd spring-boot:run
 cd api-gateway && mvnw.cmd spring-boot:run
-cd sb-admin-service && mvnw.cmd spring-boot:run
+cd rabbit-admin-service && mvnw.cmd spring-boot:run
 ```
 
 Puertos por defecto:
@@ -75,7 +81,8 @@ Puertos por defecto:
 - Orders: `http://localhost:8082`
 - Shipping: `http://localhost:8083`
 - Identity: `http://localhost:8084`
-- SB Admin: `http://localhost:8085`
+- Rabbit Admin: `http://localhost:8086`
+- RabbitMQ Management: `http://localhost:15672`
 
 ## Ejecutar frontend manual
 
@@ -92,7 +99,7 @@ npm run dev
 - Orders: `http://localhost:8082/swagger-ui/index.html`
 - Shipping: `http://localhost:8083/swagger-ui/index.html`
 - Identity: `http://localhost:8084/swagger-ui/index.html`
-- SB Admin: `http://localhost:8085/swagger-ui/index.html`
+- Rabbit Admin API: `http://localhost:8086/api/admin`
 
 Los documentos OpenAPI estan en `/v3/api-docs` en cada servicio.
 
@@ -115,7 +122,7 @@ cd inventory-service && mvnw.cmd test
 cd order-service && mvnw.cmd test
 cd shipping-service && mvnw.cmd test
 cd api-gateway && mvnw.cmd test
-cd sb-admin-service && mvnw.cmd test
+cd rabbit-admin-service && mvnw.cmd test
 ```
 
 ## Usuarios y roles
@@ -142,6 +149,7 @@ Cada usuario puede activar 2FA TOTP compatible con Google Authenticator, Microso
 - [Testing](docs/TESTING.md)
 - [API](docs/API.md)
 - [Seguridad del login y 2FA TOTP](docs/SECURITY_2FA.md)
+- [Implementacion RabbitMQ (cluster, exchanges y rubrica EP2)](docs/IMPLEMENTACION_RABBITMQ.md)
 
 ## Troubleshooting
 
