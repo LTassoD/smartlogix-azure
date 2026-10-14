@@ -13,10 +13,9 @@ Este servicio no autentica usuarios ni genera tokens. La autenticacion vive en
 - PostgreSQL local Docker: `localhost:5435`
 - Usuario: variable `SMARTLOGIX_DB_USERNAME` (por defecto, `smartlogix`)
 - Password: variable obligatoria `SMARTLOGIX_DB_PASSWORD`
-- RabbitMQ AMQP: `localhost:5672`
-- Exchange consumido: `smartlogix.orders.exchange`
-- Queue: `smartlogix.shipping.order-created.queue`
-- Routing key: `order.created`
+- Azure Service Bus (AMQP 1.0): host/policy SAS por entorno
+- Topico escuchado: `smartlogix.orders.topic`
+- Suscripciones: `shipping-created-sub`, `shipping-cancelled-sub` (con DLQ `/$deadletterqueue`)
 
 Las credenciales se configuran fuera de Git mediante variables de entorno.
 
@@ -84,14 +83,15 @@ Envios:
 - `PATCH /api/shipping/shipments/{id}/status`
 - `PATCH /api/shipping/shipments/{id}/cancel`
 
-## RabbitMQ
+## Service Bus (Azure)
 
-`shipping-service` consume el evento `OrderCreatedEvent` publicado por
-`order-service` cuando se confirma un pedido.
+`shipping-service` escucha el evento `OrderCreatedEvent` que `order-service`
+publica en el topico `smartlogix.orders.topic` cuando se confirma un pedido.
 
-- Exchange: `smartlogix.orders.exchange`
-- Queue: `smartlogix.shipping.order-created.queue`
-- Routing key: `order.created`
+- Topico: `smartlogix.orders.topic`
+- Suscripcion: `shipping-created-sub` (filtro SQL `eventType = 'order.created'`)
+- Suscripcion de cancelacion: `shipping-cancelled-sub` (filtro `eventType = 'order.cancelled'`)
+- Destino AMQP: `amqps://<host>/smartlogix.orders.topic/Subscriptions/<sub>`
 
 Al recibir el evento, crea un envio asociado al `orderId` en estado
 `PENDING_ASSIGNMENT`. No modifica `order-service` ni accede a su base de datos.

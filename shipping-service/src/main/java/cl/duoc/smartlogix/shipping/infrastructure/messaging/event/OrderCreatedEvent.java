@@ -1,5 +1,7 @@
 package cl.duoc.smartlogix.shipping.infrastructure.messaging.event;
 
+// Mismo DTO compartido, re-declarado en shipping-service.
+// la información mínima para crear el despacho: orderId, orderNumber, customerId.
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -16,10 +18,10 @@ import lombok.Setter;
 @Builder
 public class OrderCreatedEvent {
 
-    private Long orderId;
-    private String orderNumber;
-    private Long customerId;
-    private BigDecimal totalAmount;
-    private List<OrderCreatedItemEvent> items;
-    private LocalDateTime createdAt;
+    private Long orderId;                       // ID del pedido → se asocia al despacho (unique)
+    private String orderNumber;                 // "ORD-..." → número de referencia del despacho
+    private Long customerId;                    // Cliente al que va el envío
+    private BigDecimal totalAmount;             // Total (contexto)
+    private List<OrderCreatedItemEvent> items;  // ítems → descripción del contenido del envío
+    private LocalDateTime createdAt;            // Fecha del evento
 }

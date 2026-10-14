@@ -16,7 +16,7 @@ Checklist sugerida para capturas y defensa oral:
 - [ ] Transportista asignado.
 - [ ] Envio en estado `IN_TRANSIT`.
 - [ ] Envio en estado `DELIVERED`.
-- [ ] Queues RabbitMQ visibles.
+- [ ] Colas y topico de Service Bus visibles (req/reply de stock + `smartlogix.orders.topic`).
 - [ ] Tests `BUILD SUCCESS` por servicio.
 - [ ] Tablas visibles en pgAdmin.
 
@@ -26,6 +26,6 @@ Checklist sugerida para capturas y defensa oral:
 - Repository Pattern: repositories Spring Data JPA.
 - Service Layer: servicios de aplicacion por microservicio.
 - DTO Pattern: requests/responses separados de entidades.
-- Observer / Event Driven: `OrderCreatedEvent` con RabbitMQ.
+- Observer / Event Driven: `OrderCreatedEvent` publicado en Azure Service Bus (topico `smartlogix.orders.topic`).
 - Factory Method: seleccion de transportista en `shipping-service`.
 - Fallback: transportista alternativo si el solicitado no esta disponible.

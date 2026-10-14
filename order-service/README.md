@@ -13,9 +13,9 @@ Este servicio no autentica usuarios ni genera tokens. La autenticacion vive en
 - PostgreSQL local Docker: `localhost:5434`
 - Usuario: variable `SMARTLOGIX_DB_USERNAME` (por defecto, `smartlogix`)
 - Password: variable obligatoria `SMARTLOGIX_DB_PASSWORD`
-- RabbitMQ AMQP: `localhost:5672`
-- Exchange: `smartlogix.orders.exchange`
-- Routing key: `order.created`
+- Azure Service Bus (AMQP 1.0): host/policy SAS por entorno
+- Topico de eventos: `smartlogix.orders.topic`
+- Colas de stock check: `smartlogix.stock-check.req` / `smartlogix.stock-check.reply`
 
 Las credenciales se configuran fuera de Git mediante variables de entorno.
 
@@ -134,7 +134,9 @@ Authorization: Bearer <token>
 ```
 
 Al confirmar un pedido en estado `CREATED`, el servicio cambia el estado a
-`CONFIRMED`, registra historial y publica `OrderCreatedEvent` en RabbitMQ.
+`CONFIRMED`, registra historial y publica `OrderCreatedEvent` en el topico
+`smartlogix.orders.topic` de Azure Service Bus (tras verificar la disponibilidad
+de stock mediante request/reply síncrono contra `inventory-service`).
 
 ## Validacion rapida
 

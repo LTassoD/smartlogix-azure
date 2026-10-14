@@ -31,5 +31,7 @@ public interface ShipmentService {
 
     ShipmentResponse cancel(Long id);
 
+    void cancelByOrderId(Long orderId);
+
     List<ShipmentStatusHistoryResponse> getHistory(Long id);
 }

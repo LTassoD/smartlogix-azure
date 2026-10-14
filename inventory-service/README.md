@@ -49,19 +49,18 @@ Desde la carpeta `inventory-service`:
 .\mvnw.cmd test
 ```
 
-## Integracion con RabbitMQ
+## Integracion con Azure Service Bus
 
 `inventory-service` consume `OrderCreatedEvent` publicado por `order-service`
-cuando un pedido es confirmado.
+en el topico `smartlogix.orders.topic` cuando un pedido es confirmado.
 
-- Exchange: `smartlogix.orders.exchange`
-- Queue: `smartlogix.inventory.order-created.queue`
-- Routing key: `order.created`
+- Topico: `smartlogix.orders.topic`
+- Suscripcion: `inventory-sub` (filtro SQL `eventType = 'order.created'`)
+- Destino AMQP: `amqps://<host>/smartlogix.orders.topic/Subscriptions/inventory-sub`
 
-Cada microservicio tiene su propia queue. `shipping-service` usa
-`smartlogix.shipping.order-created.queue`, mientras que inventario usa
-`smartlogix.inventory.order-created.queue`. Esto permite que ambos reciban una
-copia del mismo evento sin competir por el mensaje.
+Cada microservicio que reacciona al evento tiene su propia suscripcion
+(`inventory-sub` para inventario, `shipping-created-sub` en `shipping-service`),
+de modo que ambos reciben una copia del mismo evento sin competir por el mensaje.
 
 Cuando llega el evento, inventario descuenta stock automaticamente por cada item
 del pedido y crea un movimiento `ORDER_OUT`.
@@ -77,14 +76,17 @@ existe un movimiento `ORDER_OUT` para el mismo `referenceCode`, `productId` y
 `warehouseId`. Si ya existe, el item se omite para evitar doble descuento por
 eventos repetidos.
 
-No se implementa DLQ en esta etapa. Queda como mejora futura para un entorno mas
-productivo.
+### Request/reply de stock (sincrono)
+
+`inventory-service` ademas actua como servidor del stock check que dispara
+`order-service` al confirmar: escucha en la cola `smartlogix.stock-check.req`
+y responde en `smartlogix.stock-check.reply`, correlacionado por `stockCheckId`.
 
 ## Flujo de descuento de stock
 
 1. Usuario confirma pedido en `order-service`.
-2. `order-service` publica `OrderCreatedEvent`.
-3. `inventory-service` consume el evento desde RabbitMQ.
+2. `order-service` verifica stock (request/reply síncrono) y publica `OrderCreatedEvent`.
+3. `inventory-service` consume el evento desde su suscripcion.
 4. `inventory-service` descuenta stock por cada item.
 5. `inventory-service` registra movimientos `ORDER_OUT`.
 

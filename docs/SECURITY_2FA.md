@@ -13,7 +13,7 @@ Este documento concentra la auditoría, el diseño de seguridad, la operación l
 | Identidad | `identity-service`, Java 21 y Spring Boot 4.0.6, puerto `8084`. Administra usuarios, BCrypt, TOTP y emisión de JWT. |
 | Dominio | `inventory-service` (`8081`), `order-service` (`8082`) y `shipping-service` (`8083`), todos Spring Boot. |
 | Persistencia | PostgreSQL 16, una base por microservicio. Identity persiste usuarios y desafíos 2FA. |
-| Mensajería | RabbitMQ para integración entre servicios. No participa en el login. |
+| Mensajería | Azure Service Bus (AMQP 1.0 / Qpid JMS) para integración entre servicios. No participa en el login. |
 | Autenticación | JWT stateless firmado con HS256, emitido por Identity y validado por Gateway y servicios. |
 | Contraseñas | BCrypt mediante `BCryptPasswordEncoder`. Cada hash incorpora un salt aleatorio; no fue necesaria una migración de contraseñas. |
 | Sesión frontend | El token definitivo se conserva en `sessionStorage`; cerrar sesión lo elimina del navegador. |
@@ -147,7 +147,7 @@ La lista se agrupa por responsabilidad para que la revisión sea trazable sin re
 
 - `.env.example`: inventario de variables requeridas sin valores reales.
 - `.gitignore`: excluye `.env` y configuraciones locales.
-- `docker-compose.yml`: construye los cinco servicios Java y el frontend, y levanta PostgreSQL, RabbitMQ y pgAdmin con healthchecks y credenciales del entorno.
+- `docker-compose.yml`: construye los seis servicios Java y el frontend, y levanta PostgreSQL por servicio (las credenciales de Azure Service Bus vienen del entorno).
 - `start-smartlogix.bat`: valida Docker/Compose, levanta el stack completo y conserva el modo `--dry-run`.
 - `README.md`: entrada segura al proyecto y enlace a esta guía.
 
@@ -169,7 +169,7 @@ La lista se agrupa por responsabilidad para que la revisión sea trazable sin re
 ## Gateway y servicios de dominio
 
 - `api-gateway/**/SecurityConfig.java`: permite exactamente los dos POST públicos del login, protege administración 2FA y valida `issuer`.
-- `inventory-service`, `order-service` y `shipping-service`: cada `SecurityConfig.java` valida emisor; cada `application.properties` obtiene JWT, base de datos y RabbitMQ desde el entorno.
+- `inventory-service`, `order-service` y `shipping-service`: cada `SecurityConfig.java` valida emisor; cada `application.properties` obtiene JWT, base de datos y el host/policy SAS de Service Bus desde el entorno.
 - Pruebas de contexto y README de cada servicio: fixtures sin secretos reales y documentación de arranque segura.
 
 ## Frontend
@@ -236,7 +236,7 @@ function New-SecureHex([int] $byteCount) {
 }
 
 "DB (copiar en SMARTLOGIX_DB_PASSWORD): $(New-SecureBase64 24)"
-"RabbitMQ (copiar en SMARTLOGIX_RABBITMQ_PASSWORD): $(New-SecureBase64 24)"
+"Service Bus SAS (copiar en SMARTLOGIX_SERVICEBUS_KEY): <clave primaria de la policy smartlogix-app>"
 "pgAdmin (copiar en SMARTLOGIX_PGADMIN_PASSWORD): $(New-SecureBase64 24)"
 "JWT (copiar en SMARTLOGIX_JWT_SECRET): $(New-SecureBase64 48)"
 "Cifrado 2FA (copiar en SMARTLOGIX_2FA_ENCRYPTION_PASSWORD): $(New-SecureBase64 32)"

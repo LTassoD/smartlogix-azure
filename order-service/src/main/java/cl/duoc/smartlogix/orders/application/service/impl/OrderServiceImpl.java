@@ -1,15 +1,20 @@
 package cl.duoc.smartlogix.orders.application.service.impl;
 
-import cl.duoc.smartlogix.orders.application.mapper.OrderItemMapper;
-import cl.duoc.smartlogix.orders.application.mapper.OrderMapper;
-import cl.duoc.smartlogix.orders.application.mapper.OrderStatusHistoryMapper;
-import cl.duoc.smartlogix.orders.application.service.OrderService;
-import cl.duoc.smartlogix.orders.domain.enums.OrderStatus;
-import cl.duoc.smartlogix.orders.domain.exception.BusinessRuleException;
-import cl.duoc.smartlogix.orders.domain.exception.ResourceNotFoundException;
-import cl.duoc.smartlogix.orders.infrastructure.messaging.event.OrderCreatedEvent;
-import cl.duoc.smartlogix.orders.infrastructure.messaging.event.OrderCreatedItemEvent;
-import cl.duoc.smartlogix.orders.infrastructure.messaging.publisher.OrderEventPublisher;
+// --- Importaciones: mappers, dominio, repositorios, DTOs y el publisher de mensajería ---
+import cl.duoc.smartlogix.orders.application.mapper.OrderItemMapper;           // Convierte request → entidad del ítem
+import cl.duoc.smartlogix.orders.application.mapper.OrderMapper;               // Convierte entidad → respuesta
+import cl.duoc.smartlogix.orders.application.mapper.OrderStatusHistoryMapper;   // Historico entidad → respuesta
+import cl.duoc.smartlogix.orders.application.service.OrderService;             // Interfaz que implementamos
+import cl.duoc.smartlogix.orders.domain.enums.OrderStatus;                     // Estados CREATED, CONFIRMED, etc.
+import cl.duoc.smartlogix.orders.domain.exception.BusinessRuleException;        // Excepción de regla de negocio
+import cl.duoc.smartlogix.orders.domain.exception.ResourceNotFoundException;    // Excepción "no encontrado"
+import cl.duoc.smartlogix.orders.infrastructure.messaging.client.StockCheckClient;
+import cl.duoc.smartlogix.orders.infrastructure.messaging.dto.StockCheckRequest;
+import cl.duoc.smartlogix.orders.infrastructure.messaging.dto.StockCheckResponse;
+import cl.duoc.smartlogix.orders.infrastructure.messaging.event.OrderCreatedEvent;      // Evento para Service Bus
+import cl.duoc.smartlogix.orders.infrastructure.messaging.event.OrderCancelledEvent;    // Evento de cancelación para Service Bus
+import cl.duoc.smartlogix.orders.infrastructure.messaging.event.OrderCreatedItemEvent;  // Ítems del evento
+import cl.duoc.smartlogix.orders.infrastructure.messaging.publisher.OrderEventPublisher; // PUBLICADOR: envía el evento
 import cl.duoc.smartlogix.orders.infrastructure.persistence.entity.CustomerEntity;
 import cl.duoc.smartlogix.orders.infrastructure.persistence.entity.OrderEntity;
 import cl.duoc.smartlogix.orders.infrastructure.persistence.entity.OrderItemEntity;
@@ -33,27 +38,36 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+// @Service: bean de servicio de Spring.
+// @RequiredArgsConstructor: constructor con los campos final (los 4 repos/servicios de abajo).
 @Service
 @RequiredArgsConstructor
 public class OrderServiceImpl implements OrderService {
 
+    // Formato de fecha usado en el número de pedido: "ORD-20260926-XXXXX"
     private static final DateTimeFormatter ORDER_DATE_FORMAT = DateTimeFormatter.BASIC_ISO_DATE;
 
-    private final OrderRepository orderRepository;
-    private final CustomerRepository customerRepository;
-    private final OrderStatusHistoryRepository orderStatusHistoryRepository;
-    private final OrderEventPublisher orderEventPublisher;
+    // Dependencias inyectadas por constructor:
+    private final OrderRepository orderRepository;                      // Persistencia de pedidos
+    private final CustomerRepository customerRepository;                // Persistencia de clientes
+    private final OrderStatusHistoryRepository orderStatusHistoryRepository; // Historial de cambios de estado
+    private final OrderEventPublisher orderEventPublisher;              // ENVÍA el OrderCreatedEvent a Service Bus
+    private final StockCheckClient stockCheckClient;                    // CONSULTA stock sincrónamente a inventory-service
 
+    // create: construye y guarda un pedido nuevo (siempre queda en CREATED).
     @Override
-    @Transactional
+    @Transactional // Todo dentro de una transacción de BD: si algo falla, nada se guarda.
     public OrderResponse create(CreateOrderRequest request) {
+        // Regla: al menos un ítem.
         if (request.getItems() == null || request.getItems().isEmpty()) {
             throw new BusinessRuleException("Order must contain at least one item");
         }
 
+        // Busca el cliente; si no existe, 404.
         CustomerEntity customer = customerRepository.findById(request.getCustomerId())
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found with id: " + request.getCustomerId()));
 
+        // Construye la entidad del pedido con status CREATED y total 0.
         OrderEntity order = OrderEntity.builder()
                 .orderNumber(generateOrderNumber())
                 .customer(customer)
@@ -62,6 +76,7 @@ public class OrderServiceImpl implements OrderService {
                 .totalAmount(BigDecimal.ZERO)
                 .build();
 
+        // Suma el subtotal de cada ítem (precio * cantidad) y los agrega al pedido.
         BigDecimal total = BigDecimal.ZERO;
         for (CreateOrderItemRequest itemRequest : request.getItems()) {
             BigDecimal subtotal = calculateSubtotal(itemRequest);
@@ -69,12 +84,16 @@ public class OrderServiceImpl implements OrderService {
             order.addItem(OrderItemMapper.toEntity(itemRequest, subtotal));
         }
 
+        // Fija el total y registra el historial inicial (null → CREATED).
         order.setTotalAmount(total);
         order.addHistory(buildHistory(null, OrderStatus.CREATED, "Order created"));
 
+        // Guarda y devuelve el DTO de respuesta.
+        // NOTA: aquí NO se publica nada en RabbitMQ (el evento es solo al CONFIRMAR).
         return OrderMapper.toResponse(orderRepository.save(order));
     }
 
+    // Consultas de solo lectura.
     @Override
     @Transactional(readOnly = true)
     public List<OrderResponse> findAll() {
@@ -109,6 +128,8 @@ public class OrderServiceImpl implements OrderService {
                 .toList();
     }
 
+    // updateStatus: cambia el estado de un pedido de forma genérica.
+    // → PUBLICACIÓN CONDICIONAL: si el nuevo estado es CONFIRMED, envía el evento a RabbitMQ.
     @Override
     @Transactional
     public OrderResponse updateStatus(Long id, UpdateOrderStatusRequest request) {
@@ -116,6 +137,7 @@ public class OrderServiceImpl implements OrderService {
         changeStatus(order, request.getStatus(), request.getComment());
         OrderEntity savedOrder = orderRepository.save(order);
 
+        // ★ PUNTO CLAVE #1: el evento se publica SOLO cuando el pedido pasa a CONFIRMED.
         if (request.getStatus() == OrderStatus.CONFIRMED) {
             orderEventPublisher.publishOrderCreated(toOrderCreatedEvent(savedOrder));
         }
@@ -123,21 +145,41 @@ public class OrderServiceImpl implements OrderService {
         return OrderMapper.toResponse(savedOrder);
     }
 
+    // confirm: atajo específico para confirmar ("CREATED → CONFIRMED").
+    // → VERIFICACIÓN SINCRONA DE STOCK + PUBLICACIÓN SIEMPRE.
     @Override
     @Transactional
     public OrderResponse confirm(Long id) {
         OrderEntity order = findOrderEntityById(id);
 
+        // Solo se puede confirmar un pedido que siga en CREATED.
         if (order.getStatus() != OrderStatus.CREATED) {
             throw new BusinessRuleException("Only CREATED orders can be confirmed");
         }
 
+        // ★ VERIFICACIÓN SINCRONA: consulta stock a inventory-service vía request/reply.
+        // Si no hay stock suficiente, se rechaza la confirmación con BusinessRuleException.
+        List<StockCheckRequest.Item> items = order.getItems().stream()
+                .map(i -> new StockCheckRequest.Item(i.getProductId(), i.getWarehouseId(), i.getQuantity()))
+                .toList();
+
+        StockCheckResponse stockResponse = stockCheckClient.checkStock(
+                order.getId(), order.getOrderNumber(), items);
+
+        if (!stockResponse.available()) {
+            throw new BusinessRuleException("Insufficient stock: " + stockResponse.detail());
+        }
+
         changeStatus(order, OrderStatus.CONFIRMED, "Order confirmed");
         OrderEntity savedOrder = orderRepository.save(order);
+        // ★ PUNTO CLAVE #2: aquí se envía el evento (sin condición, ya sabemos que quedó CONFIRMED).
         orderEventPublisher.publishOrderCreated(toOrderCreatedEvent(savedOrder));
         return OrderMapper.toResponse(savedOrder);
     }
 
+    // cancel: CREATED o CONFIRMED → CANCELLED.
+    // → PUBLICACIÓN: siempre que ocurra una cancelación se publica "order.cancelled"
+    //   (shipping lo usa para cancelar el despacho asociado).
     @Override
     @Transactional
     public OrderResponse cancel(Long id) {
@@ -148,9 +190,13 @@ public class OrderServiceImpl implements OrderService {
         }
 
         changeStatus(order, OrderStatus.CANCELLED, "Order cancelled");
-        return OrderMapper.toResponse(orderRepository.save(order));
+        OrderEntity savedOrder = orderRepository.save(order);
+        // ★ PUBLICACIÓN DEL EVENTO DE CANCELACIÓN (routing key "order.cancelled").
+        orderEventPublisher.publishOrderCancelled(toOrderCancelledEvent(savedOrder));
+        return OrderMapper.toResponse(savedOrder);
     }
 
+    // getHistory: devuelve el historial de cambios de estado del pedido, ordenado por fecha.
     @Override
     @Transactional(readOnly = true)
     public List<OrderStatusHistoryResponse> getHistory(Long id) {
@@ -163,22 +209,28 @@ public class OrderServiceImpl implements OrderService {
                 .toList();
     }
 
+    // Helpers privados ------------------------------
+
     private OrderEntity findOrderEntityById(Long id) {
         return orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + id));
     }
 
+    // subtotal = precio unitario × cantidad
     private BigDecimal calculateSubtotal(CreateOrderItemRequest itemRequest) {
         return itemRequest.getUnitPrice().multiply(BigDecimal.valueOf(itemRequest.getQuantity()));
     }
 
+    // changeStatus: aplica la transición y registra el historial, con validaciones.
     private void changeStatus(OrderEntity order, OrderStatus newStatus, String comment) {
         OrderStatus previousStatus = order.getStatus();
 
+        // No permite pasar al mismo estado.
         if (previousStatus == newStatus) {
             throw new BusinessRuleException("Order already has status: " + newStatus);
         }
 
+        // Solo permite transiciones válidas (ver isValidTransition).
         if (!isValidTransition(previousStatus, newStatus)) {
             throw new BusinessRuleException("Invalid order status transition from " + previousStatus + " to " + newStatus);
         }
@@ -187,6 +239,7 @@ public class OrderServiceImpl implements OrderService {
         order.addHistory(buildHistory(previousStatus, newStatus, comment));
     }
 
+    // MÁQUINA DE ESTADOS del pedido.
     private boolean isValidTransition(OrderStatus currentStatus, OrderStatus newStatus) {
         return switch (currentStatus) {
             case CREATED -> Set.of(OrderStatus.CONFIRMED, OrderStatus.CANCELLED).contains(newStatus);
@@ -194,7 +247,7 @@ public class OrderServiceImpl implements OrderService {
             case PREPARING -> newStatus == OrderStatus.READY_FOR_SHIPPING;
             case READY_FOR_SHIPPING -> newStatus == OrderStatus.SHIPPED;
             case SHIPPED -> newStatus == OrderStatus.DELIVERED;
-            case CANCELLED, DELIVERED -> false;
+            case CANCELLED, DELIVERED -> false; // Terminales: no se puede salir de aquí
         };
     }
 
@@ -206,6 +259,7 @@ public class OrderServiceImpl implements OrderService {
                 .build();
     }
 
+    // Genera "ORD-<fecha>-<secuencia>" garantizando unicidad (do-while).
     private String generateOrderNumber() {
         String date = LocalDate.now().format(ORDER_DATE_FORMAT);
         String orderNumber;
@@ -218,6 +272,7 @@ public class OrderServiceImpl implements OrderService {
         return orderNumber;
     }
 
+    // Convierte la ENTIDAD persistida al EVENTO que viajará a RabbitMQ.
     private OrderCreatedEvent toOrderCreatedEvent(OrderEntity order) {
         return OrderCreatedEvent.builder()
                 .orderId(order.getId())
@@ -225,12 +280,13 @@ public class OrderServiceImpl implements OrderService {
                 .customerId(order.getCustomer().getId())
                 .totalAmount(order.getTotalAmount())
                 .items(order.getItems().stream()
-                        .map(this::toOrderCreatedItemEvent)
+                        .map(this::toOrderCreatedItemEvent)   // Cada ítem de la entidad → ítem del evento
                         .toList())
                 .createdAt(LocalDateTime.now())
                 .build();
     }
 
+    // Convierte UN ítem del pedido al ítem del evento.
     private OrderCreatedItemEvent toOrderCreatedItemEvent(OrderItemEntity item) {
         return OrderCreatedItemEvent.builder()
                 .productId(item.getProductId())
@@ -239,6 +295,17 @@ public class OrderServiceImpl implements OrderService {
                 .productName(item.getProductName())
                 .quantity(item.getQuantity())
                 .unitPrice(item.getUnitPrice())
+                .build();
+    }
+
+    // Convierte la ENTIDAD cancelada al evento OrderCancelledEvent que viajará a RabbitMQ.
+    private OrderCancelledEvent toOrderCancelledEvent(OrderEntity order) {
+        return OrderCancelledEvent.builder()
+                .orderId(order.getId())
+                .orderNumber(order.getOrderNumber())
+                .customerId(order.getCustomer().getId())
+                .reason("Order cancelled")
+                .cancelledAt(LocalDateTime.now())
                 .build();
     }
 }

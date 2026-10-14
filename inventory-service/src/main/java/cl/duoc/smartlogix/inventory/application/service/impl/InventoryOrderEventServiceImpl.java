@@ -1,37 +1,45 @@
 package cl.duoc.smartlogix.inventory.application.service.impl;
 
-import cl.duoc.smartlogix.inventory.application.service.InventoryOrderEventService;
-import cl.duoc.smartlogix.inventory.application.service.StockService;
-import cl.duoc.smartlogix.inventory.domain.enums.StockMovementType;
-import cl.duoc.smartlogix.inventory.domain.exception.BusinessRuleException;
-import cl.duoc.smartlogix.inventory.infrastructure.messaging.event.OrderCreatedEvent;
-import cl.duoc.smartlogix.inventory.infrastructure.messaging.event.OrderCreatedItemEvent;
-import cl.duoc.smartlogix.inventory.infrastructure.persistence.repository.StockMovementRepository;
+// --- Importaciones ---
+import cl.duoc.smartlogix.inventory.application.service.InventoryOrderEventService; // Interface que implementamos
+import cl.duoc.smartlogix.inventory.application.service.StockService;               // Servicio que registra los movimientos de stock
+import cl.duoc.smartlogix.inventory.domain.enums.StockMovementType;                // Tipo de movimiento (ORDER_OUT, etc.)
+import cl.duoc.smartlogix.inventory.domain.exception.BusinessRuleException;        // Excepción de validación de negocio
+import cl.duoc.smartlogix.inventory.infrastructure.messaging.event.OrderCreatedEvent;     // El evento recibido por Rabbit
+import cl.duoc.smartlogix.inventory.infrastructure.messaging.event.OrderCreatedItemEvent; // Ítems del evento
+import cl.duoc.smartlogix.inventory.infrastructure.persistence.repository.StockMovementRepository; // Busca movimientos previos
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
+import org.springframework.util.StringUtils;  // Utilidad hasText(): valida que un string no esté vacío
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class InventoryOrderEventServiceImpl implements InventoryOrderEventService {
 
+    // Razón que se registra en cada movimiento de stock generado por un pedido confirmado.
     private static final String ORDER_OUT_REASON = "Stock descontado por pedido confirmado";
 
+    // Dependencias: manejo de stock (valida/existe) y repositorio de movimientos (evita duplicados).
     private final StockService stockService;
     private final StockMovementRepository stockMovementRepository;
 
+    // MÉTODO PRINCIPAL invocado desde el consumer de RabbitMQ.
+    // Procesa el evento: por cada ítem descuenta stock (si no se hizo antes).
     @Override
     @Transactional
     public void processOrderCreated(OrderCreatedEvent event) {
-        validateEvent(event);
+        validateEvent(event); // 1) Valida que el evento no venga vacío.
 
+        // 2) Recorre cada producto del pedido.
         for (OrderCreatedItemEvent item : event.getItems()) {
-            validateItem(item, event.getOrderNumber());
+            validateItem(item, event.getOrderNumber()); // Valida datos mínimos del ítem.
 
+            // IDEMPOTENCIA: si este pedido+producto+bodega YA generó un movimiento
+            // (p.ej. el mensaje se reentregó), lo salta para no descontar doble.
             if (isAlreadyProcessed(event.getOrderNumber(), item)) {
                 log.info(
                         "Stock movement already processed for orderNumber={} productId={} warehouseId={}",
@@ -42,6 +50,8 @@ public class InventoryOrderEventServiceImpl implements InventoryOrderEventServic
                 continue;
             }
 
+            // 3) Registra el movimiento de SALIDA (ORDER_OUT): descuenta `quantity`
+            //    del producto en la bodega, con la razón y referencia del pedido.
             stockService.createOrderOutMovement(
                     item.getProductId(),
                     item.getWarehouseId(),
@@ -51,6 +61,8 @@ public class InventoryOrderEventServiceImpl implements InventoryOrderEventServic
             );
         }
     }
+
+    // Validaciones ------------------------------
 
     private void validateEvent(OrderCreatedEvent event) {
         if (event == null) {
@@ -85,6 +97,7 @@ public class InventoryOrderEventServiceImpl implements InventoryOrderEventServic
         }
     }
 
+    // Consulta si ya existe un movimiento ORDER_OUT con la referencia del pedido.
     private boolean isAlreadyProcessed(String orderNumber, OrderCreatedItemEvent item) {
         return stockMovementRepository.existsByReferenceCodeAndProductIdAndWarehouseIdAndType(
                 orderNumber,
