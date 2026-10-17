@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jms.config.DefaultJmsListenerContainerFactory;
 import org.springframework.jms.config.JmsListenerContainerFactory;
+import org.springframework.jms.core.JmsTemplate;
 import org.springframework.util.StringUtils;
 
 /**
@@ -39,6 +40,17 @@ public class ServiceBusConfig {
 
     /** Subscription que inventory usa para recibir order.created. */
     public static final String INVENTORY_SUBSCRIPTION = "inventory-sub";
+
+    /** Topico de eventos de catalogo; inventory PUBLICA aqui product.created. */
+    public static final String CATALOG_TOPIC = "smartlogix.catalog.topic";
+
+    /**
+     * NOMBRE DE LA PROPIEDAD que el SqlFilter de cada subscription evalua.
+     * En RabbitMQ el tipo de evento viajaba en la routing key; en Service Bus las
+     * subscriptions filtran por PROPIEDADES del mensaje, asi que el publicador debe
+     * setear explicitamente eventType. Sin esto ninguna regla coincide.
+     */
+    public static final String EVENT_TYPE_PROPERTY = "eventType";
 
     /** Sufijo de la DLQ que Service Bus crea automaticamente por subscription. */
     public static final String DEAD_LETTER_SUFFIX = "/$deadletterqueue";
@@ -96,6 +108,19 @@ public class ServiceBusConfig {
         return factory;
     }
 
+    // --- JmsTemplate para PUBLICAR eventos (product.created hacia el topic de catalogo) ---
+    // inventory deja de ser solo consumidor: al crear un producto publica product.created,
+    // igual que order-service publica order.created. El publicador construye el BytesMessage
+    // a mano con un SessionCallback, por lo que el resolver de destino no se usa en ese
+    // camino; basta con compartir la ConnectionFactory AMQP 1.0.
+    @Bean
+    public JmsTemplate jmsTemplate(ConnectionFactory connectionFactory) {
+        JmsTemplate template = new JmsTemplate(connectionFactory);
+        template.setDestinationResolver(
+                (context, destinationName, session) -> new JmsTopic(destinationName));
+        return template;
+    }
+
     // --- Helpers de direccion ---
     /** Direccion del topico (para publicar). */
     public String topicDestination() {
@@ -111,6 +136,11 @@ public class ServiceBusConfig {
     /** Direccion de la DLQ de inventory. */
     public String inventoryDeadLetterDestination() {
         return inventorySubscriptionDestination() + DEAD_LETTER_SUFFIX;
+    }
+
+    /** Direccion del topico de catalogo (para publicar product.created). */
+    public String catalogTopicDestination() {
+        return "amqps://" + host + "/" + CATALOG_TOPIC;
     }
 
     public String getHost() {

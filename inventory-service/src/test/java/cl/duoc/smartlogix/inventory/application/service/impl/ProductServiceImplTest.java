@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import cl.duoc.smartlogix.inventory.domain.exception.DuplicateResourceException;
+import cl.duoc.smartlogix.inventory.infrastructure.messaging.publisher.ProductEventPublisher;
 import cl.duoc.smartlogix.inventory.infrastructure.persistence.entity.ProductEntity;
 import cl.duoc.smartlogix.inventory.infrastructure.persistence.repository.ProductRepository;
 import cl.duoc.smartlogix.inventory.presentation.dto.request.CreateProductRequest;
@@ -22,12 +23,15 @@ class ProductServiceImplTest {
     @Mock
     private ProductRepository productRepository;
 
+    @Mock
+    private ProductEventPublisher productEventPublisher;
+
     private ProductServiceImpl productService;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        productService = new ProductServiceImpl(productRepository);
+        productService = new ProductServiceImpl(productRepository, productEventPublisher);
     }
 
     @Test
@@ -56,6 +60,7 @@ class ProductServiceImplTest {
         assertThat(response.getId()).isEqualTo(1L);
         assertThat(response.getSku()).isEqualTo("SKU-200");
         verify(productRepository).save(any(ProductEntity.class));
+        verify(productEventPublisher).publishProductCreated(any());
     }
 
     @Test

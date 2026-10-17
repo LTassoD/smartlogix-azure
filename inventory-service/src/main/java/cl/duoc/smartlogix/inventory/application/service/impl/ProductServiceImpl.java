@@ -4,6 +4,8 @@ import cl.duoc.smartlogix.inventory.application.mapper.ProductMapper;
 import cl.duoc.smartlogix.inventory.application.service.ProductService;
 import cl.duoc.smartlogix.inventory.domain.exception.DuplicateResourceException;
 import cl.duoc.smartlogix.inventory.domain.exception.ResourceNotFoundException;
+import cl.duoc.smartlogix.inventory.infrastructure.messaging.event.ProductCreatedEvent;
+import cl.duoc.smartlogix.inventory.infrastructure.messaging.publisher.ProductEventPublisher;
 import cl.duoc.smartlogix.inventory.infrastructure.persistence.entity.ProductEntity;
 import cl.duoc.smartlogix.inventory.infrastructure.persistence.repository.ProductRepository;
 import cl.duoc.smartlogix.inventory.presentation.dto.request.CreateProductRequest;
@@ -20,6 +22,7 @@ import org.springframework.util.StringUtils;
 public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository productRepository;
+    private final ProductEventPublisher productEventPublisher;
 
     @Override
     @Transactional
@@ -29,7 +32,20 @@ public class ProductServiceImpl implements ProductService {
         }
 
         ProductEntity product = ProductMapper.toEntity(request);
-        return ProductMapper.toResponse(productRepository.save(product));
+        ProductEntity saved = productRepository.save(product);
+
+        // Publica product.created hacia smartlogix.catalog.topic. Se emite DESPUES del
+        // save para que el evento lleve el id generado por la BD. Antes esta operacion
+        // no dejaba ningun registro de mensajeria.
+        productEventPublisher.publishProductCreated(ProductCreatedEvent.builder()
+                .productId(saved.getId())
+                .sku(saved.getSku())
+                .name(saved.getName())
+                .unitPrice(saved.getUnitPrice())
+                .createdAt(saved.getCreatedAt())
+                .build());
+
+        return ProductMapper.toResponse(saved);
     }
 
     @Override
