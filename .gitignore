@@ -34,3 +34,9 @@ replay_pid*
 
 # Local agent instructions
 AGENTS.md
+
+# Evidencia generada en runtime (se regenera con docs/recolectar_evidencia.py)
+evidencia/evidencia_*.txt
+evidencia/recoleccion_programada.log
+registro_mensajeria.csv
+registro_mensajeria.log
