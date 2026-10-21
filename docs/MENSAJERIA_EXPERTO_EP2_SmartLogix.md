@@ -104,14 +104,36 @@ Código que lo prueba — en los consumidores el `catch` **relanza** para forzar
 `inventory OrderCreatedConsumer.java:51-61` (`throw new RuntimeException(exception)`),
 `shipping OrderCreatedConsumer.java:46-54`.
 
+> 🔬 **Realidad verificada de este proyecto (21-10-2026):** con `acknowledge-mode=auto` **y**
+> `session-transacted=false`, el cliente **Qpid JMS asienta (pre-ack) el mensaje al entregarlo** al
+> listener. Por eso, aunque el `catch` relanza la excepción, **NO hay reentrega**: el mensaje se pierde
+> y **nunca llega a la DLQ** (log `payload is not valid JSON` y DLQ vacía, comprobado en las 4 subs).
+> Para que el camino de error sea *at-least-once* real en la app habría que usar
+> `acknowledge-mode=client` (ACK explícito al terminar bien) o `session-transacted=true`
+> (rollback ⇒ redelivery).
+> **Cómo lo demuestro en vivo sin tocar la app:** con un cliente que controla el settlement
+> (`docs/demo-scripts/demo_dlq_reintento.py`): 3 entregas con `DeliveryCount` 0→1→2 sin `complete`
+> ⇒ `DeadLetterReason=MaxDeliveryCountExceeded`. Y la vía del TTL
+> (`docs/demo-scripts/demo_dlq_ttl.py`): `DeadLetterReason=TTLExpiredException`.
+> **Decir esto con seguridad suma puntos**: muestra que conozco la semántica de entrega real, no solo
+> la que dice la configuración.
+
 Detalle fino (de experto): el **cliente síncrono** usa `Session.AUTO_ACKNOWLEDGE`
 (`StockCheckClient.java:101`) porque su consumidor del reply se crea al vuelo y vive solo para esa
 respuesta; ahí el auto-ACK al recibir es correcto.
 
 ### Cómo lo explicas (30 s)
-> “No acuso al recibir, acuso al **terminar bien**. Es PeekLock: mientras proceso, el mensaje queda
-> bloqueado. Si mi listener tira excepción, no lo acuso, Service Bus lo reentrega y al tercer intento lo
-> manda a la DLQ. Eso me da entrega *at-least-once*.”
+> “Es **PeekLock**: mientras proceso, el mensaje queda bloqueado y solo se borra si yo lo **completo**
+> (ACK) al terminar bien. Service Bus me **reentrega** el mensaje si no lo acuso, incrementando
+> `DeliveryCount`, y al tercer intento lo manda a la **DLQ** con el motivo
+> `MaxDeliveryCountExceeded`. Eso da entrega *at-least-once* y por eso el consumidor debe ser
+> **idempotente**.”
+>
+> *Y si preguntan por la configuración exacta:* “En mi proyecto los consumidores Java usan
+> `acknowledge-mode=auto` con `session-transacted=false`, y ahí el cliente Qpid **asienta al
+> entregar**, así que el fallo de un listener **no** genera reentrega. Lo comprobé y por eso la
+> demo de la DLQ la hago con un cliente que controla el settlement: así se ve el
+> `DeliveryCount` creciendo y el `MaxDeliveryCountExceeded` real.”
 
 **Pregunta probable:** *¿No debería ser “exactly once”?* → En sistemas distribuidos el exactly-once real
 casi no existe; se resuelve con *at-least-once* + **idempotencia** en el consumidor
@@ -308,7 +330,10 @@ alert* sobre Log Analytics (alerta basada en logs, complementaria a las métrica
 - **¿Qué pasa si shipping está caído cuando confirmo?** El pedido igual se confirma; el mensaje queda
   **durable** en la suscripción y se reentrega al volver (hasta agotar TTL/`maxDeliveryCount` → DLQ).
 - **¿Es exactly-once?** No; **at-least-once** + **idempotencia** en el consumidor.
-- **¿Dónde está el ACK?** Al **retornar OK** el `@JmsListener`; si lanza excepción, no hay ACK → reentrega.
+- **¿Dónde está el ACK?** Al **retornar OK** el `@JmsListener`; si lanza excepción, no hay ACK → reentrega
+  (⚠️ en este proyecto el cliente Qpid **pre-ackea** con `acknowledge-mode=auto` + `session-transacted=false`,
+  por eso la reentrega no se observa en los consumidores Java: se demuestra con un cliente que controla
+  el settlement → `MaxDeliveryCountExceeded`).
 - **¿Por qué dos colas para el stock?** Para separar petición y respuesta y correlacionar por `stockCheckId`
   sin bloquear la cola de entrada.
 - **¿Por qué no Sessions de Service Bus?** Se probó que **Qpid JMS no soporta receptores sessionful** en
