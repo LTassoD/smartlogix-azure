@@ -165,16 +165,48 @@ python purgar_dlq.py       # o: az servicebus ... (purgar la DLQ de inventory-su
 
 ---
 
-## 5. Publish/Subscribe — filtros (se explica dentro del bloque 3) — ~30 s
+## 5. Publish/Subscribe — filtros (se explica dentro del bloque 3) — ~1 min
 
 ### Mostrar (Azure)
 - **`smartlogix.orders.topic` → Suscripciones**: `inventory-sub` y `shipping-created-sub` con filtro
   `eventType='order.created'`; `shipping-cancelled-sub` con `eventType='order.cancelled'`.
+- **`smartlogix.catalog.topic` → Suscripciones**: `catalog-audit-sub` con filtro `eventType='product.created'`.
+
+### Tabla de reglas REAL del proyecto (verificada con `az servicebus topic subscription rule list`)
+
+| Topic | Suscripción | Regla | SqlFilter | ¿`$Default`? |
+|---|---|---|---|---|
+| `smartlogix.orders.topic` | `inventory-sub` | `only-created` | `eventType = 'order.created'` | **No existe** |
+| `smartlogix.orders.topic` | `shipping-created-sub` | `only-created` | `eventType = 'order.created'` | **No existe** |
+| `smartlogix.orders.topic` | `shipping-cancelled-sub` | `only-cancelled` | `eventType = 'order.cancelled'` | **No existe** |
+| `smartlogix.catalog.topic` | `catalog-audit-sub` | `productCreatedFilter` | `eventType = 'product.created'` | **No existe** |
+
+> Las 4 suscripciones tienen **una sola regla explícita y SIN `$Default`**. Por eso un mensaje con un
+> `eventType` desconocido no tiene a quién entregarse. Si existiera `$Default` (regla por defecto que
+> matchea todo), ese mensaje **sí** llegaría a la suscripción por esa vía.
+
+### Acción (demo en vivo del filtrado — 30 s, es el punto fuerte de la defensa)
+```bash
+export SB_CONN="$(az servicebus namespace authorization-rule keys list \
+  -g rg-smartlogix-aca --namespace-name sb-smartlogix-ns -n smartlogix-admin \
+  --query primaryConnectionString -o tsv)"
+python docs/demo-scripts/demo_evento_huerfano.py
+```
+Publica 2 mensajes que no matchean ninguna regla (uno con `eventType='order.inventado'` y otro **sin**
+`eventType`) y muestra que **todas las suscripciones quedan en 0 activos y 0 en dead-letter**.
 
 ### Decir
 *“El topic no rutea por routing key como RabbitMQ: **cada suscripción filtra por la propiedad `eventType`**
-( SqlFilter). Por eso el publicador **debe** setear `eventType`; si no, ninguna regla matchea y no llega
-nada. Y por eso shipping tiene **dos** suscripciones: para **aislar** las cancelaciones de las creaciones.”*
+(SqlFilter). Por eso el publicador **debe** setear `eventType`.*
+
+*Y aquí está la trampa: un mensaje que no matchea **no va a la DLQ** — se **descarta en el topic**, porque no
+hay ninguna suscripción a la que entregárselo. Ojo, porque en las suscripciones está
+`deadLetteringOnFilterEvaluationExceptions = true`, pero eso **no** significa ‘lo que no matchea va a la DLQ’:
+esa opción aplica solo cuando la **expresión del filtro lanza una excepción** (filtro mal formado), no cuando
+simplemente no coincide. Además **ninguna de mis 4 suscripciones tiene `$Default`**, así que no hay red de
+seguridad. Y lo más grave: **el publicador no recibe ningún error**. Es una **pérdida silenciosa de mensajes**,
+que es exactamente el riesgo del que nos protege el contrato de eventos (que obliga a setear `eventType` y a
+versionar el esquema).”*
 
 ---
 
