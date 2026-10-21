@@ -22,9 +22,13 @@ curl -s -o /dev/null -w "%{http_code}\n" http://20.121.31.149/    # -> 200
 ```
 
 ```bash
-# 2) Cadena de conexión para los scripts de demo (se usa como SB_CONN)
+# 2) Cadena de conexión para los scripts de demo (se usa como SB_CONN).
+#    IMPORTANTE: usar la regla "smartlogix-admin" (NO "smartlogix-app").
+#    Los scripts consultan contadores y hacen peek -> usan el SDK de ADMINISTRACIÓN,
+#    que exige el claim "Manage"; la policy de la app solo tiene Send/Listen y
+#    responde 401 Unauthorized en get_subscription_runtime_properties.
 export SB_CONN="$(az servicebus namespace authorization-rule keys list \
-  -g rg-smartlogix-aca --namespace-name sb-smartlogix-ns -n smartlogix-app \
+  -g rg-smartlogix-aca --namespace-name sb-smartlogix-ns -n smartlogix-admin \
   --query primaryConnectionString -o tsv)"
 ```
 
