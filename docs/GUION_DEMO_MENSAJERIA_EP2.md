@@ -93,14 +93,16 @@ heredo reintento, durabilidad y desacople del HTTP.”*
 ### Acción
 ```bash
 # Un solo evento -> varios consumidores. Para VERLO retenido, usa la suscripción "observadora".
-# (a) crear observador sin consumidor (retiene el mensaje):
+# (a) crear observador sin consumidor (retiene el mensaje) — el borrado previo la hace idempotente:
+az servicebus topic subscription delete -g rg-smartlogix-aca --namespace-name sb-smartlogix-ns \
+  --topic-name smartlogix.orders.topic -n demo-observer-sub
 az servicebus topic subscription create -g rg-smartlogix-aca --namespace-name sb-smartlogix-ns \
   --topic-name smartlogix.orders.topic -n demo-observer-sub --default-message-time-to-live PT1H
+az servicebus topic subscription rule delete -g rg-smartlogix-aca --namespace-name sb-smartlogix-ns \
+  --topic-name smartlogix.orders.topic --subscription-name demo-observer-sub --name \$Default
 az servicebus topic subscription rule create -g rg-smartlogix-aca --namespace-name sb-smartlogix-ns \
   --topic-name smartlogix.orders.topic --subscription-name demo-observer-sub \
   --name f --filter-sql-expression "eventType = 'order.created'"
-az servicebus topic subscription rule delete -g rg-smartlogix-aca --namespace-name sb-smartlogix-ns \
-  --topic-name smartlogix.orders.topic --subscription-name demo-observer-sub --name \$Default
 
 # (b) publicar (confirmar un pedido o inyectar):
 python demo_mensajeria.py

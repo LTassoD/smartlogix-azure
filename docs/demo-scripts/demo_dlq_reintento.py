@@ -46,20 +46,22 @@ EVENTO = {
 
 
 def _crear_suscripcion(admin):
+    # siempre desde cero: si la demo anterior dejo mensajes, el conteo de reintentos
+    # y el resultado en la DLQ serian confusos
     try:
-        admin.create_subscription(
-            topic_name=TOPIC,
-            subscription_name=SUB,
-            default_message_time_to_live=timedelta(hours=1),
-            dead_lettering_on_message_expiration=True,
-            dead_lettering_on_filter_evaluation_exceptions=True,
-            max_delivery_count=MAX_DELIVERY,
-        )
-        print(f"suscripcion {SUB} creada (maxDeliveryCount={MAX_DELIVERY}, TTL 1h)")
+        admin.delete_subscription(topic_name=TOPIC, subscription_name=SUB)
+        print(f"suscripcion {SUB} anterior eliminada (demo limpia)")
     except Exception as exc:  # noqa: BLE001
-        if "Conflict" not in str(exc) and "409" not in str(exc):
-            raise
-        print(f"suscripcion {SUB} ya existia")
+        print(f"(no habia suscripcion {SUB} previa)")
+    admin.create_subscription(
+        topic_name=TOPIC,
+        subscription_name=SUB,
+        default_message_time_to_live=timedelta(hours=1),
+        dead_lettering_on_message_expiration=True,
+        dead_lettering_on_filter_evaluation_exceptions=True,
+        max_delivery_count=MAX_DELIVERY,
+    )
+    print(f"suscripcion {SUB} creada (maxDeliveryCount={MAX_DELIVERY}, TTL 1h)")
 
 
 def _crear_regla(admin):
