@@ -1,0 +1,94 @@
+====================================================================================================
+EVIDENCIA DE MENSAJERIA - SmartLogix EP2  |  generado 2026-10-21 18:49:37 
+====================================================================================================
+
+====================================================================================================
+1) REGISTRO CONTINUO DE RONDAS (flujo real: sync stock-check + async order.created/product.created)
+====================================================================================================
+  (8 rondas)
+  2026-10-21T19:27:03+00:00 | ronda  1 | ORD-20261021-90890 | HTTP 200 en 665 ms | CONFIRMED  | producto 10 (EP2-REG-162704) | stock P1=35
+  2026-10-21T19:38:45+00:00 | ronda  1 | ORD-20261021-67384 | HTTP 200 en 650 ms | CONFIRMED  | producto 11 (EP2-REG-163846) | stock P1=34
+  2026-10-21T19:53:53+00:00 | ronda  2 | ORD-20261021-60389 | HTTP 200 en 600 ms | CONFIRMED  | producto 12 (EP2-REG-165354) | stock P1=33
+  2026-10-21T20:09:01+00:00 | ronda  3 | ORD-20261021-56046 | HTTP 200 en 595 ms | CONFIRMED  | producto 13 (EP2-REG-170902) | stock P1=30
+  2026-10-21T20:24:10+00:00 | ronda  4 | ORD-20261021-13764 | HTTP 200 en 586 ms | CONFIRMED  | producto 14 (EP2-REG-172411) | stock P1=26
+  2026-10-21T20:39:18+00:00 | ronda  5 | ORD-20261021-36400 | HTTP 200 en 551 ms | CONFIRMED  | producto 15 (EP2-REG-173919) | stock P1=25
+  2026-10-21T20:59:08+00:00 | ronda  6 | ORD-20261021-23897 | HTTP 200 en 682 ms | CONFIRMED  | producto 16 (EP2-REG-175909) | stock P1=24
+  2026-10-21T21:14:17+00:00 | ronda  7 | ORD-20261021-48570 | HTTP 200 en 670 ms | CONFIRMED  | producto 17 (EP2-REG-181417) | stock P1=23
+
+====================================================================================================
+2) CONTADORES DE AZURE SERVICE BUS (broker)
+====================================================================================================
+  sub inventory-sub            activos=  0 dead-letter=  0 total=    0
+  sub shipping-created-sub     activos=  0 dead-letter=  0 total=    0
+  sub shipping-cancelled-sub   activos=  0 dead-letter=  0 total=    0
+  sub catalog-audit-sub        activos=  0 dead-letter=  0 total=    0
+  cola smartlogix.stock-check.req activos=  0 dead-letter=  0 total=    0
+  cola smartlogix.stock-check.reply activos=  0 dead-letter=  0 total=    0
+
+====================================================================================================
+3) LOGS DE LOS CONSUMIDORES (evidencia del lado del consumer)
+====================================================================================================
+ms=1
+inventory-1  | 2026-10-21T21:14:17.870967637Z 2026-10-21T21:14:17.869Z  INFO 1 --- [inventory-service] [ntContainer#3-3] c.d.s.i.i.m.c.StockCheckRequestConsumer  : StockCheckResponse sent orderNumber=ORD-20261021-48570 available=true
+
+##### order #####
+order-1  | 2026-10-21T18:16:47.925424195Z 2026-10-21T18:16:47.924Z  WARN 1 --- [order-service] [           main] o.s.core.events.SpringDocAppInitializer  : SpringDoc /v3/api-docs endpoint is enabled by default. To disable it in production, set the property 'springdoc.api-docs.enabled=false'
+order-1  | 2026-10-21T18:16:47.926478009Z 2026-10-21T18:16:47.926Z  WARN 1 --- [order-service] [           main] o.s.core.events.SpringDocAppInitializer  : SpringDoc /swagger-ui.html endpoint is enabled by default. To disable it in production, set the property 'springdoc.swagger-ui.enabled=false'
+
+##### shipping #####
+shipping-1  | 2026-10-21T18:16:51.293280476Z 2026-10-21T18:16:51.292Z  WARN 1 --- [shipping-service] [           main] o.s.core.events.SpringDocAppInitializer  : SpringDoc /v3/api-docs endpoint is enabled by default. To disable it in production, set the property 'springdoc.api-docs.enabled=false'
+shipping-1  | 2026-10-21T18:16:51.294179988Z 2026-10-21T18:16:51.293Z  WARN 1 --- [shipping-service] [           main] o.s.core.events.SpringDocAppInitializer  : SpringDoc /swagger-ui.html endpoint is enabled by default. To disable it in production, set the property 'springdoc.swagger-ui.enabled=false'
+shipping-1  | 2026-10-21T18:19:41.104736887Z 2026-10-21T18:19:41.104Z  WARN 1 --- [shipping-service] [windows.net:-1]] org.apache.qpid.jms.JmsConnection        : Connection ID:2ff0341a-3def-4327-9556-a1d0ab50d000:4 has failed due to: Unknown error from remote peer
+shipping-1  | 2026-10-21T19:37:42.261033682Z 2026-10-21T19:37:42.260Z  WARN 1 --- [shipping-service] [windows.net:-1]] org.apache.qpid.jms.JmsConnection        : Connection ID:8839620a-2291-416d-9559-fd51410c786a:8 has failed due to: Unknown error from remote peer
+shipping-1  | 2026-10-21T19:37:42.566951657Z 2026-10-21T19:37:42.566Z  WARN 1 --- [shipping-service] [windows.net:-1]] org.apache.qpid.jms.JmsConnection        : Connection ID:2f6098ea-bc1a-4b2f-a3a4-a6067af0fbea:6 has failed due to: Unknown error from remote peer
+shipping-1  | 2026-10-21T19:58:27.993147105Z 2026-10-21T19:58:27.990Z  WARN 1 --- [shipping-service] [ntContainer#3-4] c.d.s.s.i.m.c.OrderCreatedConsumer       : OrderCreatedEvent could not be processed in shipping orderId=null orderNumber=null reason=order.created payload is not valid JSON
+shipping-1  | 2026-10-21T20:05:31.485317609Z 2026-10-21T20:05:31.484Z  INFO 1 --- [shipping-service] [ntContainer#3-4] c.d.s.s.i.m.c.OrderCreatedConsumer       : OrderCreatedEvent received in shipping orderId=999 orderNumber=ORD-DEMO-DLQ
+shipping-1  | 2026-10-21T20:06:26.778929872Z 2026-10-21T20:06:26.778Z  INFO 1 --- [shipping-service] [ntContainer#3-4] c.d.s.s.i.m.c.OrderCreatedConsumer       : OrderCreatedEvent received in shipping orderId=999 orderNumber=ORD-DEMO-DLQ
+shipping-1  | 2026-10-21T20:08:07.935776900Z 2026-10-21T20:08:07.935Z  INFO 1 --- [shipping-service] [ntContainer#3-4] c.d.s.s.i.m.c.OrderCreatedConsumer       : OrderCreatedEvent received in shipping orderId=999 orderNumber=ORD-DEMO-DLQ
+shipping-1  | 2026-10-21T20:17:27.586464367Z 2026-10-21T20:17:27.584Z  INFO 1 --- [shipping-service] [ntContainer#3-4] c.d.s.s.i.m.c.OrderCreatedConsumer       : OrderCreatedEvent received in shipping orderId=999 orderNumber=ORD-DEMO-DLQ
+shipping-1  | 2026-10-21T20:19:30.583608496Z 2026-10-21T20:19:30.583Z  WARN 1 --- [shipping-service] [ntContainer#3-4] c.d.s.s.i.m.c.OrderCreatedConsumer       : OrderCreatedEvent could not be processed in shipping orderId=null orderNumber=null reason=order.created payload is not valid JSON
+shipping-1  | 2026-10-21T20:19:30.722111885Z 2026-10-21T20:19:30.721Z  WARN 1 --- [shipping-service] [ntContainer#3-4] c.d.s.s.i.m.c.OrderCreatedConsumer       : OrderCreatedEvent could not be processed in shipping orderId=null orderNumber=null reason=order.created payload is not valid JSON
+
+====================================================================================================
+4) OBSERVABILIDAD: metricas de Service Bus en Log Analytics
+====================================================================================================
+  2026-10-21T19:20:00Z  ActiveConnections      = 32
+  2026-10-21T19:25:00Z  ConnectionsOpened      = 5
+  2026-10-21T19:25:00Z  ActiveConnections      = 41
+  2026-10-21T19:30:00Z  ActiveConnections      = 40
+  2026-10-21T19:35:00Z  ConnectionsOpened      = 3
+  2026-10-21T19:35:00Z  ActiveConnections      = 40
+  2026-10-21T19:40:00Z  ConnectionsOpened      = 3
+  2026-10-21T19:40:00Z  ActiveConnections      = 40
+  2026-10-21T19:45:00Z  ActiveConnections      = 40
+  2026-10-21T19:50:00Z  ConnectionsOpened      = 7
+  2026-10-21T19:50:00Z  ActiveConnections      = 40
+  2026-10-21T19:55:00Z  ConnectionsOpened      = 33
+  2026-10-21T19:55:00Z  ActiveConnections      = 41
+  2026-10-21T20:00:00Z  ActiveConnections      = 40
+  2026-10-21T20:00:00Z  ConnectionsOpened      = 12
+  2026-10-21T20:05:00Z  DeadletteredMessages   = 1
+  2026-10-21T20:05:00Z  ConnectionsOpened      = 6
+  2026-10-21T20:05:00Z  ActiveConnections      = 40
+  2026-10-21T20:10:00Z  ActiveConnections      = 40
+  2026-10-21T20:10:00Z  ConnectionsOpened      = 13
+  2026-10-21T20:10:00Z  DeadletteredMessages   = 7
+  2026-10-21T20:15:00Z  ConnectionsOpened      = 38
+  2026-10-21T20:15:00Z  DeadletteredMessages   = 23
+  2026-10-21T20:15:00Z  ActiveConnections      = 40
+  2026-10-21T20:20:00Z  ActiveConnections      = 40
+  2026-10-21T20:20:00Z  ConnectionsOpened      = 7
+  2026-10-21T20:25:00Z  ActiveConnections      = 40
+  2026-10-21T20:25:00Z  ConnectionsOpened      = 4
+  2026-10-21T20:30:00Z  ActiveConnections      = 40
+  2026-10-21T20:35:00Z  ActiveConnections      = 40
+  2026-10-21T20:40:00Z  ConnectionsOpened      = 4
+  2026-10-21T20:40:00Z  ActiveConnections      = 40
+  2026-10-21T20:45:00Z  ActiveConnections      = 40
+  2026-10-21T20:50:00Z  ActiveConnections      = 40
+  2026-10-21T20:55:00Z  ActiveConnections      = 40
+  2026-10-21T21:00:00Z  ConnectionsOpened      = 4
+  2026-10-21T21:00:00Z  ActiveConnections      = 40
+  2026-10-21T21:05:00Z  ActiveConnections      = 40
+  2026-10-21T21:10:00Z  ActiveConnections      = 40
+  2026-10-21T21:15:00Z  ConnectionsOpened      = 4
