@@ -129,11 +129,47 @@ az servicebus topic subscription delete -g rg-smartlogix-aca --namespace-name sb
 
 ## 4. ACK y semántica de entrega — ~2 min
 
-### Acción (mensaje que falla 3 veces → reentrega → DLQ)
-Crea un mensaje “venenoso”: JSON inválido con `eventType='order.created'` a `inventory-sub`.
+### Acción (mensaje que vence por TTL → **DLQ nativa**)
+```bash
+export SB_CONN="$(az servicebus namespace authorization-rule keys list \
+  -g rg-smartlogix-aca --namespace-name sb-smartlogix-ns -n smartlogix-admin \
+  --query primaryConnectionString -o tsv)"
+python demo_dlq_ttl.py
+```
+El script (1) crea la suscripción **`demo-dlq-sub`** (TTL **20 s**, `deadLetteringOnMessageExpiration=true`,
+regla `eventType='order.created'`, **sin consumidor**), (2) publica un `order.created` válido y
+(3) espera: en **~1 min** el broker lo **dead-letterea** porque venció su TTL.
+
+Salida esperada:
+```
+  t+ 20s  activos=1  dead-letter=0
+  t+ 60s  activos=0  dead-letter=1
+== CONTENIDO DE LA DLQ (dead-letter) ==
+  DeadLetterReason           : TTLExpiredException
+  DeadLetterErrorDescription : The message expired and was dead lettered.
+  body                       : {"orderId": 999, "orderNumber": "ORD-DEMO-DLQ", ...}
+```
+
+### Mostrar (Azure)
+- **Tema `smartlogix.orders.topic` → Suscripciones → `demo-dlq-sub` → Explorador → pestaña
+  “Dead letter”** → el mensaje **con el motivo** `TTLExpiredException` y el `body` intacto.
+- **Namespace → Métricas → `DeadletteredMessages` = 1** → es lo que dispara `alert-sb-deadletter`
+  (bloque 8). *Ojo:* en Log Analytics esta métrica llega **siempre en 0** (limitación del
+  diagnóstico de Service Bus); el valor real se ve en el portal o con `az monitor metrics list`.
+- **Código:** `inventory .../DeadLetterConsumer.java` lee `DeadLetterReason`,
+  `DeadLetterErrorDescription` y `DeadLetterSource` (equivalente a la cabecera `x-death` de RabbitMQ).
+
+### Decir
+*“La **retención** y la **DLQ** están conectadas: la suscripción tiene TTL de 30 s y
+`deadLetteringOnMessageExpiration=true`, así que un mensaje que **nadie consume no se pierde: se
+dead-letterea** con el motivo `TTLExpiredException`. Eso es la **retención con red de seguridad**:
+nada se pierde en silencio. Y la DLQ es **nativa** en Service Bus: cada suscripción y cada cola
+trae su `/$deadletterqueue`, no hay que declarar un DLX como en RabbitMQ.”*
+
+### Variante: el mensaje “venenoso” (JSON inválido) — qué pasa de verdad
 ```bash
 python - <<'PY'
-import os, json
+import os
 from azure.servicebus import ServiceBusClient, ServiceBusMessage
 c = ServiceBusClient.from_connection_string(os.environ["SB_CONN"])
 with c.get_topic_sender(topic_name="smartlogix.orders.topic") as s:
@@ -142,25 +178,21 @@ with c.get_topic_sender(topic_name="smartlogix.orders.topic") as s:
 print("veneno enviado")
 PY
 ```
-Espera ~1 min (reintentos por PeekLock) y vuelve a correr `python inspeccionar_eventos.py`.
+El consumidor **lo recibe y lo rechaza** (log: `payload is not valid JSON`), pero en este proyecto
+**no hay reentrega**: con `acknowledge-mode=auto` y `session-transacted=false` el cliente **Qpid
+JMS asienta (pre-ack) el mensaje al entregarlo**, así que la excepción del listener no alcanza a
+dejarlo en la subscription para un reintento y **nunca llega a la DLQ**.
 
-### Mostrar (Azure)
-- `inventory-sub`: sube **activos → 1… 2…**, y al 3er intento (**maxDeliveryCount=3**) pasa a **DLQ = 1**.
-- **Explorador de Service Bus → pestaña “Dead letter”** → ver **DeadLetterReason** y
-  **DeadLetterErrorDescription** (el `payload is not valid JSON`).
-- **Código:** `inventory .../OrderCreatedConsumer.java` → el `catch` **relanza** (`throw RuntimeException`)
-  ⇒ **no ACKea** ⇒ reentrega. Config: `sessionTransacted=false`, `acknowledge-mode=auto`.
-
-### Decir
-*“No acuso al recibir, acuso al **terminar bien** (PeekLock). Mi listener tiró excepción, así que no hubo
-ACK; Service Bus lo reintentó y al **tercer** intento lo movió a la **DLQ**. Eso da entrega **at-least-once**
-y lo combino con **idempotencia** para no duplicar efectos.”*
-
-**Pregunta probable — ¿exactly once?** *“No; at-least-once + idempotencia en el consumidor.”*
+> Si el profesor pregunta por qué: para que un mensaje fallido se reintente y termine en la DLQ
+> hay que **no asentar hasta procesar bien**, es decir `acknowledge-mode=client` (ACK explícito al
+> final) o `session-transacted=true` (rollback ⇒ redelivery). Con el PeekLock de Service Bus el
+> modelo correcto es *acknowledge-after-processing*; en esta configuración el consumo es
+> *at-most-once* en el camino de error. **Decir esto con seguridad es un punto a favor**: muestra
+> que conozco la semántica de entrega y no solo la configuré.
 
 ### Limpieza
 ```bash
-python purgar_dlq.py       # o: az servicebus ... (purgar la DLQ de inventory-sub)
+python demo_dlq_ttl.py --limpiar   # borra demo-dlq-sub
 ```
 
 ---
@@ -216,7 +248,9 @@ versionar el esquema).”*
 - La **DLQ** es nativa: **cada suscripción y cada cola** tiene su `/$deadletterqueue` (no se declara, a
   diferencia del **DLX** de RabbitMQ).
 - **Código:** `DeadLetterConsumer` lee `DeadLetterReason`, `DeadLetterErrorDescription`, `DeadLetterSource`
-  y los **loguea** (equivalente a la cabecera `x-death` de RabbitMQ).
+  y los **loguea** (equivalente a la cabecera `x-death` de RabbitMQ). Escucha las DLQ de `inventory-sub`
+  y de las dos de shipping; **`demo-dlq-sub` no tiene consumidor de DLQ a propósito**, para que el
+  mensaje dead-lettereado **quede visible** en el Explorador durante la demo.
 
 ### Decir
 *“En RabbitMQ declaraba DLX + DLQ + bindings; aquí es nativa. El broker adjunta el motivo del fallo y mi
@@ -262,8 +296,11 @@ la topología persiste.”*
 Action group **`ag-smartlogix-alerts`** → email a `lu.tasso@duocuc.cl`.
 
 ### Acción (disparo en vivo, opcional)
-El mensaje venenoso del bloque 4 ya deja **DeadletteredMessages = 1** → en **~1–2 min**,
-`alert-sb-deadletter` pasa a **“Alerta”** (y llega correo). Luego purga la DLQ y verás **“Resuelta”**.
+La demo de TTL del bloque 4 deja **`DeadletteredMessages = 1`** en el namespace → en **~1–2 min**,
+`alert-sb-deadletter` pasa a **“Alerta”** (y llega correo). Luego borras `demo-dlq-sub` y verás **“Resuelta”**.
+
+> Si necesitas que el correo llegue, Azure pide **una confirmación** al receptor la primera vez: ábrela
+> desde el correo y confirma la suscripción al action group.
 
 ### Decir
 *“Tengo tres alertas métricas sobre el namespace: **DLQ > 0** (crítica, aviso temprano de fallos),
@@ -291,6 +328,10 @@ python inyectar_eventos_demo.py 2 1 si
 
 # Flujo síncrono+asíncrono real (login + create + confirm + ver stock)
 python demo_mensajeria.py
+
+# DLQ real: publica, vence por TTL y aparece en la DLQ nativa (visible en el portal)
+python demo_dlq_ttl.py
+python demo_dlq_ttl.py --limpiar
 
 # Purgar DLQ
 python purgar_dlq.py

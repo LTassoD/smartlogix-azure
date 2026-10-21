@@ -38,14 +38,24 @@ listo. Si **no firmas** → el paquete vuelve al depósito y te lo vuelven a ent
 | `application.properties` (los 3 servicios) | `spring.jms.session-transacted` | `false` (no hay transacción) |
 | Código | el `catch` que **relanza** la excepción | `throw new RuntimeException(e)` |
 
-**Cómo funciona `auto`:** el broker da el mensaje **bloqueado** (PeekLock) → el listener procesa →
-**si retorna normalmente, Spring envía el ACK** y el broker lo elimina; **si lanza excepción, no
-hay ACK**, el lock se libera y el broker **reentrega** el mismo mensaje, incrementando
-`DeliveryCount`.
+**Cómo funciona `auto` (modelo ideal):** el broker da el mensaje **bloqueado** (PeekLock) → el listener
+procesa → **si retorna normalmente, Spring envía el ACK** y el broker lo elimina; **si lanza excepción,
+no hay ACK**, el lock se libera y el broker **reentrega** el mismo mensaje, incrementando
+`DeliveryCount`, hasta agotar `maxDeliveryCount` → DLQ.
 
 > ⚠️ **El detalle que hay que saber explicar:** si el `catch` se comiera la excepción (sin relanzarla),
 > Spring haría ACK igual y **el mensaje se perdería** aunque el procesamiento fallara. Por eso el
 > `catch` **relanza**: es el que "le avisa" al broker que la operación falló.
+
+> 🔬 **Comportamiento REAL verificado en este proyecto (no lo ideal, pero es lo que hay):**
+> con `acknowledge-mode=auto` **y** `session-transacted=false`, el cliente **Qpid JMS asienta
+> (pre-ack) el mensaje al entregarlo** al listener. Por eso, aunque el `catch` relanza la excepción,
+> **no hay reentrega**: el mensaje se pierde y **nunca llega a la DLQ** (verificado el 21-10-2026:
+> mensaje con JSON inválido → log `payload is not valid JSON` → 0 reentregas, DLQ vacía).
+> Para tener reentrega + DLQ por fallo haría falta **`acknowledge-mode=client`** (ACK explícito al
+> terminar bien) o **`session-transacted=true`** (rollback ⇒ redelivery).
+> **La vía de DLQ que sí se demuestra en vivo** es el **vencimiento por TTL** (§2, disparador 2):
+> `python demo_dlq_ttl.py` → el mensaje muere en la DLQ con `DeadLetterReason=TTLExpiredException`.
 
 **Dónde se ve en el portal.** No hay un interruptor de ACK. Se ve en las **métricas**:
 `DeliveryCount` de un mensaje y el contador `DeadletteredMessages` de la suscripción.
@@ -64,8 +74,13 @@ hay ACK**, el lock se libera y el broker **reentrega** el mismo mensaje, increme
 **Cuándo se dispara el dead-letter en tu proyecto (2 disparadores):**
 
 1. **`maxDeliveryCount=3`**: el mensaje falló 3 veces (se agotó el reintento).
+   ⚠️ *En este proyecto **no se puede ver en vivo*** por el pre-ack de Qpid JMS (§1): el fallo no
+   genera reentrega. Es el disparador **teórico** del diseño.
 2. **TTL vencido** + `deadLetteringOnMessageExpiration=true`: el mensaje se quedó demasiado tiempo
    sin ser consumido (p. ej. el consumidor estuvo caído) → en vez de desaparecer, pasa a la DLQ.
+   ✅ *Este **sí se demuestra en vivo*** (`python demo_dlq_ttl.py`): el mensaje aparece en
+   `.../Subscriptions/demo-dlq-sub/$deadletterqueue` con `DeadLetterReason=TTLExpiredException` y
+   `DeadLetterErrorDescription=The message expired and was dead lettered.`
 
 **Dónde se configura.**
 

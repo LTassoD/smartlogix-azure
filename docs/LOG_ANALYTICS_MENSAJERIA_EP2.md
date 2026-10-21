@@ -111,10 +111,15 @@ ServiceBusAuditLogs
 | `ActiveConnections` | ✅ sí | 32 → 41 → 24 (varía con los contenedores) |
 | `ConnectionsOpened` | ✅ sí | marca los picos de tráfico |
 | `ActiveMessages` | ✅ sí, valor 0 | **es un medidor**: 0 = todo consumido al instante |
-| `DeadletteredMessages` | ✅ sí, valor 0 | **medidor**: 0 = no hay mensajes muertos (es la buena noticia) |
+| `DeadletteredMessages` | ⚠️ llega **siempre en 0** | La tabla `AzureMetrics` **sí** contiene la métrica (42 puntos/día) pero **todos valen 0**. El valor real (1 con un mensaje en DLQ) se ve con `az monitor metrics list` o en el portal. No la uses como evidencia en la defensa. |
 | `Messages` | ✅ sí, valor 0 | idem, medidor del estado actual |
 | `IncomingMessages` / `OutgoingMessages` | ⚠️ devuelven **0** | **Limitación conocida de Azure Monitor**: los contadores acumulados de mensajes no se reportan correctamente a nivel de namespace en Service Bus |
 | `OperationalLogs` / `ServiceBusAuditLogs` | ⚠️ tablas vacías | `RuntimeAuditLogs` requiere habilitar la *auditoría* en el namespace por encima del diagnostic setting |
+
+### Métricas que **sí** sirven (medidas sobre 24 h)
+`ActiveConnections` · `ConnectionsOpened` · `ConnectionsClosed` · `ActiveMessages` · `Size` ·
+`ScheduledMessages` · `Messages` · `OutgoingBytes` · `OutgoingMessages` · `ServerSendLatency` ·
+`CompleteMessage` · `IncomingBytes` · `IncomingMessages` · `DeadletteredMessages` (siempre 0)
 
 ### Conclusión práctica
 > **Log Analytics NO es la mejor fuente para ver el detalle de los mensajes** de Service Bus.
