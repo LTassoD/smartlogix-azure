@@ -43,3 +43,5 @@ registro_mensajeria.log
 
 # Kafka: logs de prueba locales
 kafka/*.log
+__pycache__/
+*.pyc
