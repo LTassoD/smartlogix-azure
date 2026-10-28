@@ -40,3 +40,6 @@ evidencia/evidencia_*.txt
 evidencia/recoleccion_programada.log
 registro_mensajeria.csv
 registro_mensajeria.log
+
+# Kafka: logs de prueba locales
+kafka/*.log
