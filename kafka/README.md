@@ -113,6 +113,32 @@ Los listeners ya están preparados para ambos entornos:
 ## Estado
 
 - [x] **Fase 0** — Kafka + topic + productor/consumidor con dashboard
-- [ ] **Fase 1** — dual publish desde `order-service` (spring-kafka)
+- [x] **Fase 1** — dual publish desde `order-service` (spring-boot-starter-kafka)
 - [ ] **Fase 2** — `analytics-service` (métricas agregadas + SSE) y dashboard web
 - [ ] **Fase 3** — despliegue en la VM, video y PPT
+
+### Fase 1: dual publish (implementado)
+
+`order-service` serializa el evento **una sola vez** y lo envía a dos destinos:
+
+```
+OrderEventPublisher#publish
+   ├── publicarEnServiceBus  → topic smartlogix.orders.topic (EP2, coreografía)
+   └── publicarEnKafka       → topic smartlogix.orders.events (EP3, analítica)
+```
+
+- **Kafka es opcional**: `SMARTLOGIX_KAFKA_ENABLED=false` lo desactiva sin tocar el código.
+- **Fallo aislado**: si Kafka no responde solo se registra un `WARN`; el pedido y la
+  coreografía de Service Bus continúan intactos (y viceversa).
+- **Key = `orderNumber`** y headers `eventType` / `orderNumber` / `source`, espejo de
+  las propiedades JMS que usan los `SqlFilter` de la EP2.
+- **Test de integración**: `OrderEventPublisherKafkaTest` publica con un `KafkaTemplate`
+  real y comprueba key, headers y payload; se salta solo si no hay broker.
+
+Variables en `docker-compose.yml` (servicio `order`):
+
+| Variable | Default | Uso |
+|---|---|---|
+| `SMARTLOGIX_KAFKA_ENABLED` | `true` | activa/desactiva el dual publish |
+| `SMARTLOGIX_KAFKA_BOOTSTRAP` | `kafka:29092` | listener interno de la red Docker |
+| `SMARTLOGIX_KAFKA_TOPIC` | `smartlogix.orders.events` | topic de analítica |

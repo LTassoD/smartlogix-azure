@@ -67,6 +67,11 @@ services:
       SMARTLOGIX_SERVICEBUS_HOST: ${SMARTLOGIX_SERVICEBUS_HOST:-sb-smartlogix-ns.servicebus.windows.net}
       SMARTLOGIX_SERVICEBUS_POLICY: ${SMARTLOGIX_SERVICEBUS_POLICY:-smartlogix-app}
       SMARTLOGIX_SERVICEBUS_KEY: ${SMARTLOGIX_SERVICEBUS_KEY}
+      # EP3: dual publish hacia Kafka (listener interno de la red Docker).
+      # Si Kafka no esta arriba el pedido sigue su curso: solo se registra un warning.
+      SMARTLOGIX_KAFKA_ENABLED: ${SMARTLOGIX_KAFKA_ENABLED:-true}
+      SMARTLOGIX_KAFKA_BOOTSTRAP: ${SMARTLOGIX_KAFKA_BOOTSTRAP:-kafka:29092}
+      SMARTLOGIX_KAFKA_TOPIC: ${SMARTLOGIX_KAFKA_TOPIC:-smartlogix.orders.events}
     depends_on:
       postgres-order:
         condition: service_healthy

@@ -40,6 +40,13 @@
 			<artifactId>spring-boot-starter-jms</artifactId>
 		</dependency>
 		<dependency>
+			<!-- EP3: streaming de eventos hacia Apache Kafka (dual publish).
+			     spring-boot-starter-kafka = spring-kafka + KafkaAutoConfiguration
+			     (en Boot 4 la autoconfiguracion vive en un modulo aparte). -->
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-kafka</artifactId>
+		</dependency>
+		<dependency>
 			<groupId>org.apache.qpid</groupId>
 			<artifactId>qpid-jms-client</artifactId>
 			<version>2.8.0</version>

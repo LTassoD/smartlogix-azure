@@ -68,18 +68,24 @@ public class SecurityConfig {
 
     @Bean
     public Converter<Jwt, ? extends AbstractAuthenticationToken> jwtAuthenticationConverter() {
-        return jwt -> {
-            String role = jwt.getClaimAsString("role");
+        // Clase anonima (no lambda): Spring necesita ver los tipos genericos en
+        // runtime. Con un lambda, KafkaListenerAnnotationBeanPostProcessor no puede
+        // determinar <S,T> al registrar los Converter del contexto y el arranque falla.
+        return new Converter<Jwt, AbstractAuthenticationToken>() {
+            @Override
+            public AbstractAuthenticationToken convert(Jwt jwt) {
+                String role = jwt.getClaimAsString("role");
 
-            if (role == null || role.isBlank()) {
-                throw new JwtException("JWT role claim is required");
+                if (role == null || role.isBlank()) {
+                    throw new JwtException("JWT role claim is required");
+                }
+
+                return new JwtAuthenticationToken(
+                        jwt,
+                        List.of(new SimpleGrantedAuthority("ROLE_" + role)),
+                        jwt.getSubject()
+                );
             }
-
-            return new JwtAuthenticationToken(
-                    jwt,
-                    List.of(new SimpleGrantedAuthority("ROLE_" + role)),
-                    jwt.getSubject()
-            );
         };
     }
 
