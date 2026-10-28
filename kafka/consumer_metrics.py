@@ -35,8 +35,17 @@ ANCHO = 74
 
 
 def habilitar_ansi() -> bool:
-    """Activa secuencias ANSI en la consola de Windows (10+)."""
+    """Detecta si la salida soporta secuencias ANSI.
+
+    - Si la salida esta redirigida a un archivo -> modo texto.
+    - En Linux/macOS, mintty (Git Bash) y Windows Terminal el ANSI es nativo.
+    - En cmd.exe/PowerShell clasico se activa con SetConsoleMode (Windows 10+).
+    """
+    if not sys.stdout.isatty():
+        return False
     if os.name != "nt":
+        return True
+    if os.environ.get("WT_SESSION") or "xterm" in os.environ.get("TERM", ""):
         return True
     try:
         import ctypes
