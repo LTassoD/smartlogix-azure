@@ -20,6 +20,7 @@ services:
       SMARTLOGIX_INVENTORY_SERVICE_URL: http://inventory:8081
       SMARTLOGIX_ORDERS_SERVICE_URL: http://order:8082
       SMARTLOGIX_SHIPPING_SERVICE_URL: http://shipping:8083
+      SMARTLOGIX_ANALYTICS_SERVICE_URL: http://analytics:8085
       SMARTLOGIX_JWT_SECRET: ${SMARTLOGIX_JWT_SECRET}
       SMARTLOGIX_JWT_ISSUER: ${SMARTLOGIX_JWT_ISSUER:-smartlogix-identity-service}
     depends_on:
@@ -27,6 +28,7 @@ services:
       - order
       - inventory
       - shipping
+      - analytics
     networks:
       - smartlogix-net
 
@@ -50,6 +52,18 @@ services:
     depends_on:
       postgres-identity:
         condition: service_healthy
+    networks:
+      - smartlogix-net
+
+  analytics:
+    # EP3: consume pedidos desde Kafka y expone metricas REST + SSE (ver docs/EP3_STREAMING.md).
+    build: ./analytics-service
+    ports:
+      - "8085:8085"
+    environment:
+      JAVA_TOOL_OPTIONS: ${SMARTLOGIX_JVM_OPTS:--Xmx256m}
+      SMARTLOGIX_KAFKA_BOOTSTRAP: ${SMARTLOGIX_KAFKA_BOOTSTRAP:-kafka:29092}
+      SMARTLOGIX_KAFKA_TOPIC: ${SMARTLOGIX_KAFKA_TOPIC:-smartlogix.orders.events}
     networks:
       - smartlogix-net
 
