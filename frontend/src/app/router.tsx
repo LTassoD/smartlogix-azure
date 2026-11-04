@@ -10,6 +10,7 @@ import { OrdersPage } from "@/features/orders/pages/OrdersPage";
 import { ReportsPage } from "@/features/reports/pages/ReportsPage";
 import { SettingsPage } from "@/features/settings/pages/SettingsPage";
 import { ShipmentsPage } from "@/features/shipments/pages/ShipmentsPage";
+import { StreamingPage } from "@/features/streaming/pages/StreamingPage";
 import { WarehousesPage } from "@/features/warehouses/pages/WarehousesPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 
@@ -38,6 +39,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission={PAGE_PERMISSIONS.inventory}>
             <InventoryPage />
+          </ProtectedRoute>
+        )
+      },
+      {
+        path: "/analitica",
+        element: (
+          <ProtectedRoute permission={PAGE_PERMISSIONS.streaming}>
+            <StreamingPage />
           </ProtectedRoute>
         )
       },

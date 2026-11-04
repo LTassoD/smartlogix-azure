@@ -1,5 +1,6 @@
 import { NavLink } from "react-router-dom";
 import {
+  Activity,
   BarChart3,
   Boxes,
   ClipboardList,
@@ -26,6 +27,7 @@ const navigation: SidebarNavigationItem[] = [
   { name: "Envios", href: "/envios", icon: Truck, page: "shipments" },
   { name: "Transportistas", href: "/transportistas", icon: MapPinned, page: "carriers" },
   { name: "Bodegas", href: "/bodegas", icon: Warehouse, page: "warehouses" },
+  { name: "Analitica", href: "/analitica", icon: Activity, page: "streaming" },
   { name: "Reportes", href: "/reportes", icon: BarChart3, page: "reports" },
   { name: "Configuracion", href: "/configuracion", icon: Settings, page: "settings" }
 ];

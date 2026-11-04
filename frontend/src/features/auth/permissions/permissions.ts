@@ -44,7 +44,8 @@ export type PageKey =
   | "carriers"
   | "warehouses"
   | "reports"
-  | "settings";
+  | "settings"
+  | "streaming";
 
 export const PAGE_PERMISSIONS: Record<PageKey, Permission> = {
   dashboard: "dashboard:view",
@@ -54,7 +55,9 @@ export const PAGE_PERMISSIONS: Record<PageKey, Permission> = {
   carriers: "carriers:view",
   warehouses: "warehouses:view",
   reports: "reports:view",
-  settings: "settings:view"
+  settings: "settings:view",
+  // EP3: la analitica en vivo reutiliza el permiso del dashboard (no hay permiso nuevo en identity).
+  streaming: "dashboard:view"
 };
 
 export const ACCESS_RESTRICTED_MESSAGE = "No tienes permisos para acceder a esta sección.";
