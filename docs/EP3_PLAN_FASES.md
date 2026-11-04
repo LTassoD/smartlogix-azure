@@ -19,7 +19,7 @@ de la EP2** (Azure Service Bus).
 |---|---|---|---|
 | **0** | Kafka en Docker (KRaft), topic de pedidos, productor y consumidor con dashboard | ✅ Completada (28-oct) | `af3c395`, `57f6967` |
 | **1** | Dual publish: `order-service` publica en Service Bus **y** en Kafka | ✅ Completada (28-oct) | `71aad6f` |
-| **2** | `analytics-service` (consumer group, ventana 60 s, REST + SSE) y dashboard React | ⬜ Pendiente | — |
+| **2** | `analytics-service` (consumer group, ventana 60 s, REST + SSE) y dashboard React | ✅ Implementada y verificada en local (4-nov) | `b550a59`, `c6b7253`, docs/EP3_STREAMING.md |
 | **3** | Despliegue en la VM, video ≤5 min, PPT ≤15 slides y ensayo | ⬜ Pendiente | — |
 
 Leyenda: ✅ hecha · 🟡 en curso · ⬜ pendiente · ⛔ bloqueada.
@@ -95,7 +95,7 @@ falla; kafka y el stack comparten la red `smartlogix-net`.
 > refleje trabajo en equipo, las tareas de la sección 9 permiten aportar desde ya sin
 > reescribir lo hecho.
 
-## 5. Fase 2 — `analytics-service` + dashboard web ⬜
+## 5. Fase 2 — `analytics-service` + dashboard web ✅
 
 **Objetivo:** convertir el flujo de Kafka en un producto visible: un microservicio que
 consume el topic, agrega métricas en ventanas y las expone por REST y SSE, más una página
@@ -116,15 +116,15 @@ en el frontend que se actualiza sola.
 
 | ID | Tarea | Criterio de terminado | Responsable | Estado |
 |---|---|---|---|---|
-| T2.1 | Esqueleto de `analytics-service` (pom, aplicación, actuator, Dockerfile) | arranca en :8085 y responde `/actuator/health` | _(asignar)_ | ⬜ |
-| T2.2 | Consumidor Kafka con grupo `smartlogix-analytics` y Jackson 3 | consume `smartlogix.orders.events`; mensaje inválido → log y sigue | _(asignar)_ | ⬜ |
-| T2.3 | Agregador con ventana deslizante de 60 s | pedidos/min, ingreso, ticket promedio, top 5, distribución por partición | _(asignar)_ | ⬜ |
-| T2.4 | API REST `GET /api/analytics/metrics` + tests del agregador | snapshot estable con reloj inyectable; tests unitarios | _(asignar)_ | ⬜ |
-| T2.5 | Stream SSE `GET /api/analytics/stream` | emite cada 1–2 s, cierra limpio y soporta reconexión | _(asignar)_ | ⬜ |
-| T2.6 | Página React `features/streaming` (tarjetas, top, Recharts) | datos en vivo, estado de conexión, diseño consistente | _(asignar)_ | ⬜ |
-| T2.7 | Ruta, menú, permisos y ruta del gateway | accesible solo con sesión y rol permitido | _(asignar)_ | ⬜ |
-| T2.8 | Pruebas de integración y smoke E2E | `producer_orders.py --rate 5` visible en el dashboard; tests verdes | _(asignar)_ | ⬜ |
-| T2.9 | Documento `docs/EP3_STREAMING.md` (arquitectura, API, operación) | otro integrante puede levantarlo siguiendo el doc | _(asignar)_ | ⬜ |
+| T2.1 | Esqueleto de `analytics-service` (pom, aplicación, actuator, Dockerfile) | arranca en :8085 y responde `/actuator/health` | LTassoD (base) | ✅ |
+| T2.2 | Consumidor Kafka con grupo `smartlogix-analytics` y Jackson 3 | consume `smartlogix.orders.events`; mensaje inválido → log y sigue | LTassoD (base) | ✅ |
+| T2.3 | Agregador con ventana deslizante de 60 s | pedidos/min, ingreso, ticket promedio, top 5, distribución por partición | LTassoD (base) | ✅ |
+| T2.4 | API REST `GET /api/analytics/metrics` + tests del agregador | snapshot estable con reloj inyectable; tests unitarios | LTassoD (base) | ✅ |
+| T2.5 | Stream SSE `GET /api/analytics/stream` | emite cada 1–2 s, cierra limpio y soporta reconexión | LTassoD (base) | ✅ |
+| T2.6 | Página React `features/streaming` (tarjetas, top, Recharts) | datos en vivo, estado de conexión, diseño consistente | LTassoD (base) | ✅ |
+| T2.7 | Ruta, menú, permisos y ruta del gateway | accesible solo con sesión y rol permitido | LTassoD (base) | ✅ |
+| T2.8 | Pruebas de integración y smoke E2E | `producer_orders.py --rate 5` visible en el dashboard; tests verdes | LTassoD (base) | ✅ |
+| T2.9 | Documento `docs/EP3_STREAMING.md` (arquitectura, API, operación) | otro integrante puede levantarlo siguiendo el doc | LTassoD (base) | ✅ |
 
 ## 6. Fase 3 — Despliegue, video y PPT ⬜
 
