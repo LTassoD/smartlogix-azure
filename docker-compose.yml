@@ -4,7 +4,8 @@ services:
     ports:
       - "80:80"
     environment:
-      SMARTLOGIX_GATEWAY_URL: ${SMARTLOGIX_GATEWAY_URL:-http://localhost:8080}
+      # nginx hace proxy hacia el gateway por la red de Compose (nombre del servicio, puerto interno).
+      SMARTLOGIX_GATEWAY_URL: ${SMARTLOGIX_GATEWAY_URL:-http://gateway:8080}
     depends_on:
       - gateway
     networks:
@@ -13,7 +14,8 @@ services:
   gateway:
     image: smartlogix2026acr.azurecr.io/smartlogix/api-gateway:azure
     ports:
-      - "8080:8080"
+      # Host 8090 (8080 lo ocupa Oracle en esta maquina); dentro de la red sigue en 8080.
+      - "8090:8080"
     environment:
       JAVA_TOOL_OPTIONS: ${SMARTLOGIX_JVM_OPTS:--Xmx512m}
       SMARTLOGIX_IDENTITY_SERVICE_URL: http://identity:8084
@@ -59,7 +61,8 @@ services:
     # EP3: consume pedidos desde Kafka y expone metricas REST + SSE (ver docs/EP3_STREAMING.md).
     build: ./analytics-service
     ports:
-      - "8085:8085"
+      # Host 8086: el 8085 lo usa sb-admin-service en este compose.
+      - "8086:8085"
     environment:
       JAVA_TOOL_OPTIONS: ${SMARTLOGIX_JVM_OPTS:--Xmx256m}
       SMARTLOGIX_KAFKA_BOOTSTRAP: ${SMARTLOGIX_KAFKA_BOOTSTRAP:-kafka:29092}

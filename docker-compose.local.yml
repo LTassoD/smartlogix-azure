@@ -1,0 +1,28 @@
+# ---------------------------------------------------------------------------
+# Override para desarrollo local: construye las imagenes desde el codigo fuente
+# en vez de descargarlas de Azure Container Registry (requiere login en ACR).
+#
+# Uso:
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build --wait
+# ---------------------------------------------------------------------------
+services:
+  frontend:
+    build: ./frontend
+
+  gateway:
+    build: ./api-gateway
+
+  identity:
+    build: ./identity-service
+
+  order:
+    build: ./order-service
+
+  inventory:
+    build: ./inventory-service
+
+  shipping:
+    build: ./shipping-service
+
+  sb-admin:
+    build: ./sb-admin-service
