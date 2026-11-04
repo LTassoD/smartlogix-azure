@@ -1,2 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Scripts ejecutables dentro de imagenes Linux: siempre LF
+mvnw text eol=lf
+*.sh text eol=lf
