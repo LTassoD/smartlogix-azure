@@ -146,6 +146,8 @@ Cada usuario puede activar 2FA TOTP compatible con Google Authenticator, Microso
 - [Testing](docs/TESTING.md)
 - [API](docs/API.md)
 - [Seguridad del login y 2FA TOTP](docs/SECURITY_2FA.md)
+- [Plan EP3 por fases (Kafka y analytics)](docs/EP3_PLAN_FASES.md)
+- [Cómo contribuir](CONTRIBUTING.md)
 
 ## Troubleshooting
 
