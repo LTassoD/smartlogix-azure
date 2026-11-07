@@ -20,7 +20,7 @@ de la EP2** (Azure Service Bus).
 | **0** | Kafka en Docker (KRaft), topic de pedidos, productor y consumidor con dashboard | ✅ Completada (28-oct) | `af3c395`, `57f6967` |
 | **1** | Dual publish: `order-service` publica en Service Bus **y** en Kafka | ✅ Completada (28-oct) | `71aad6f` |
 | **2** | `analytics-service` (consumer group, ventana 60 s, REST + SSE) y dashboard React | ✅ Implementada y verificada en local (4-nov) | `b550a59`, `c6b7253`, docs/EP3_STREAMING.md |
-| **3** | Despliegue en la VM, video ≤5 min, PPT ≤15 slides y ensayo | ⬜ Pendiente | — |
+| **3** | Despliegue en la VM, video ≤5 min, PPT ≤15 slides y ensayo | 🟡 En curso: despliegue verificado (7-nov); falta video, RUT y ensayo | commits `b6d7ebc`, `9ebe14d`, `1e26bd0`, `23a69a1` |
 
 Leyenda: ✅ hecha · 🟡 en curso · ⬜ pendiente · ⛔ bloqueada.
 
@@ -144,9 +144,9 @@ evidencia de pedido real (Service Bus + Kafka + dashboard), video ≤5 min, PPT 
 
 | ID | Tarea | Criterio de terminado | Responsable | Estado |
 |---|---|---|---|---|
-| T3.1 | Dockerfile y build/push a ACR de `analytics-service` | imagen `:azure` desplegable | _(asignar)_ | ⬜ |
-| T3.2 | Compose en la VM (stack + Kafka) con límites de memoria | `docker stats` estable; Kafka con heap acotado | _(asignar)_ | ⬜ |
-| T3.3 | Verificación en VM con un pedido real | evidencia en logs de Service Bus, Kafka y dashboard | _(asignar)_ | ⬜ |
+| T3.1 | Dockerfile y build/push a ACR de `analytics-service` | imagen `:azure` desplegable | LTassoD | ✅ |
+| T3.2 | Compose en la VM (stack + Kafka) con límites de memoria | `docker stats` estable; Kafka con heap acotado | LTassoD | ✅ |
+| T3.3 | Verificación en VM con un pedido real | evidencia en logs de Service Bus, Kafka y dashboard | LTassoD | ✅ |
 | T3.4 | Guion y grabación del video (≤5 min) | video subido con link público | _(asignar)_ | ⬜ |
 | T3.5 | PPT (≤15 slides) con integrantes, arquitectura y flujos | revisada contra la rúbrica | _(asignar)_ | ⬜ |
 | T3.6 | Verificar repo público y README final | link abre sin login ni credenciales | _(asignar)_ | ⬜ |

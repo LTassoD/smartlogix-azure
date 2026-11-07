@@ -12,6 +12,9 @@ services:
   gateway:
     build: ./api-gateway
 
+  analytics:
+    build: ./analytics-service
+
   identity:
     build: ./identity-service
 

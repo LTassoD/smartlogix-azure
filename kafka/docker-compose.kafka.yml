@@ -16,7 +16,8 @@ services:
     container_name: smartlogix-kafka
     restart: unless-stopped
     ports:
-      - "9092:9092"
+      # Solo accesible desde la propia maquina (los scripts del host usan localhost:9092).
+      - "127.0.0.1:9092:9092"
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
